@@ -82,11 +82,34 @@ export async function GET(request: NextRequest) {
         const sender = headers.find(h => h.name === 'From')?.value || 'Unknown'
         const subject = headers.find(h => h.name === 'Subject')?.value || 'No Subject'
         
+        // Extract full email body content
+        let fullBody = ''
+        try {
+          if (message.payload?.body?.data) {
+            // Simple text email
+            fullBody = Buffer.from(message.payload.body.data, 'base64').toString('utf-8')
+          } else if (message.payload?.parts) {
+            // Multi-part email - extract text parts
+            for (const part of message.payload.parts) {
+              if (part.mimeType === 'text/plain' && part.body?.data) {
+                fullBody += Buffer.from(part.body.data, 'base64').toString('utf-8') + '\n'
+              } else if (part.mimeType === 'text/html' && part.body?.data && !fullBody) {
+                // Use HTML as fallback if no plain text
+                const htmlContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
+                fullBody = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+              }
+            }
+          }
+        } catch (bodyError) {
+          console.warn(`⚠️ Failed to extract body for message ${message.id}:`, bodyError)
+          fullBody = message.snippet || ''
+        }
+
         const processedEmail = {
           gmail_id: message.id,
           sender: sender.includes('<') ? sender.split('<')[0].trim() : sender,
           subject,
-          body_preview: message.snippet || '',
+          body_preview: fullBody || message.snippet || '',
           user_id: user.id,
           created_at: new Date(parseInt(message.internalDate || '0')).toISOString(),
         }
@@ -108,102 +131,32 @@ export async function GET(request: NextRequest) {
 
     // Store emails in Supabase (upsert to avoid duplicates)
     console.log('💾 Saving emails to database...')
-    console.log('📝 Sample email data:', JSON.stringify(processedEmails[0], null, 2))
-    console.log('🔍 Total emails to save:', processedEmails.length)
-    console.log('👤 User ID:', user.id)
+    console.log('📊 About to save emails:', processedEmails.length)
+    console.log('📋 Sample email data:', processedEmails[0])
     
-    // First, let's try a simple insert to see what happens
     try {
       const { data: emails, error: dbError } = await supabase
         .from('emails')
-        .insert(processedEmails)
+        .upsert(processedEmails, { 
+          onConflict: 'gmail_id,user_id',
+          ignoreDuplicates: false  // Changed to false to see what's happening
+        })
         .select()
 
+      console.log('🔍 Database operation result:', {
+        success: !dbError,
+        emailsReturned: emails?.length || 0,
+        error: dbError ? JSON.stringify(dbError, null, 2) : null
+      })
+
       if (dbError) {
-        console.error('❌ Database error:', dbError)
-        console.error('❌ Error code:', dbError.code)
-        console.error('❌ Error message:', dbError.message)
-        console.error('❌ Error details:', dbError.details)
-        console.error('❌ Error hint:', dbError.hint)
-        
-        // If it's a duplicate key error, try upsert instead
-        if (dbError.code === '23505') {
-          console.log('🔄 Duplicate key error, trying upsert...')
-          
-          // The constraint is on gmail_id only, so we need to handle this differently
-          // Let's try to get existing emails first and only insert new ones
-          console.log('🔍 Checking for existing emails...')
-          const gmailIds = processedEmails.map(email => email.gmail_id)
-          
-          const { data: existingEmails, error: existingError } = await supabase
-            .from('emails')
-            .select('gmail_id')
-            .in('gmail_id', gmailIds)
-            .eq('user_id', user.id)
-            
-          if (existingError) {
-            console.error('❌ Error checking existing emails:', existingError)
-            return NextResponse.json({ error: 'Failed to check existing emails', existingError }, { status: 500 })
-          }
-          
-          const existingGmailIds = new Set(existingEmails?.map(e => e.gmail_id) || [])
-          const newEmails = processedEmails.filter(email => !existingGmailIds.has(email.gmail_id))
-          
-          console.log(`📊 Found ${existingEmails?.length || 0} existing emails, ${newEmails.length} new emails to insert`)
-          
-          if (newEmails.length > 0) {
-            const { data: insertedEmails, error: insertError } = await supabase
-              .from('emails')
-              .insert(newEmails)
-              .select()
-              
-            if (insertError) {
-              console.error('❌ Insert error:', insertError)
-              return NextResponse.json({ error: 'Failed to insert new emails', insertError }, { status: 500 })
-            }
-            
-            console.log(`✅ Successfully inserted ${insertedEmails?.length || 0} new emails`)
-            
-            // Get all emails for this user to return
-            const { data: allEmails, error: allError } = await supabase
-              .from('emails')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false })
-              .limit(20)
-              
-            if (allError) {
-              console.error('❌ Error fetching all emails:', allError)
-              return NextResponse.json({ emails: insertedEmails || [] })
-            }
-            
-            return NextResponse.json({ emails: allEmails || [] })
-          } else {
-            console.log('📧 No new emails to insert, returning existing emails')
-            
-            // Get existing emails for this user
-            const { data: allEmails, error: allError } = await supabase
-              .from('emails')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false })
-              .limit(20)
-              
-            if (allError) {
-              console.error('❌ Error fetching existing emails:', allError)
-              return NextResponse.json({ emails: [] })
-            }
-            
-            return NextResponse.json({ emails: allEmails || [] })
-          }
-        }
-        
+        console.error('❌ Database error details:', JSON.stringify(dbError, null, 2))
         return NextResponse.json({ error: 'Failed to save emails', dbError }, { status: 500 })
       }
 
       console.log(`✅ Successfully saved ${emails?.length || 0} emails to database`)
       console.log('📤 Final response:', { emailCount: emails?.length || 0 })
-      
+
       return NextResponse.json({ emails: emails || [] })
     } catch (error) {
       console.error('❌ Unexpected database error:', error)

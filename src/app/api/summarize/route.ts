@@ -58,13 +58,17 @@ export async function POST(request: NextRequest) {
 
     // Generate summary using Groq
     console.log('🤖 Generating AI summary...')
-    const prompt = `Summarize this email in 1-2 concise sentences. Focus on the key action items or main points.
+    const prompt = `Analyze this email and provide a clear, actionable summary. Focus on:
+- Key action items or requests
+- Important deadlines or dates
+- Main decisions or information
+- Next steps required
 
 From: ${email.sender}
 Subject: ${email.subject}
-Preview: ${email.body_preview}
+Content: ${email.body_preview}
 
-Summary:`
+Provide a concise 2-3 sentence summary highlighting the most important points:`
 
     let summary: string
     try {
@@ -75,9 +79,9 @@ Summary:`
             content: prompt,
           },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: 'openai/gpt-oss-120b',
         temperature: 0.1,
-        max_tokens: 150,
+        max_tokens: 400,
       })
 
       summary = completion.choices[0]?.message?.content?.trim() || ''

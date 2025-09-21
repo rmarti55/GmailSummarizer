@@ -11,9 +11,9 @@ interface Email {
   id: string
   sender: string
   subject: string
-  snippet: string
+  body_preview: string
   summary?: string
-  date: string
+  created_at: string
 }
 
 export default function Dashboard() {
@@ -24,21 +24,13 @@ export default function Dashboard() {
   const fetchEmails = async () => {
     setLoading(true)
     try {
-      console.log('🔄 Starting to fetch emails...')
       const response = await fetch('/api/gmail')
-      console.log('📡 Response status:', response.status)
-      
       if (response.ok) {
         const data = await response.json()
-        console.log('📧 Received data:', data)
-        console.log('📧 Sample email object:', data.emails?.[0])
         setEmails(data.emails || [])
-      } else {
-        const errorData = await response.json()
-        console.error('❌ API Error:', errorData)
       }
     } catch (error) {
-      console.error('❌ Failed to fetch emails:', error)
+      console.error('Failed to fetch emails:', error)
     }
     setLoading(false)
   }
@@ -170,7 +162,7 @@ export default function Dashboard() {
                           {email.sender}
                         </p>
                         <Badge variant="secondary" className="text-xs">
-                          {email.date}
+                          {new Date(email.created_at).toLocaleDateString()}
                         </Badge>
                       </div>
                       <CardTitle className="text-base leading-6">
@@ -182,7 +174,7 @@ export default function Dashboard() {
                 
                 <CardContent className="pt-0">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {email.snippet}
+                    {email.body_preview}
                   </p>
                   
                   {email.summary ? (
