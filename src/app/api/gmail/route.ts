@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/request'
+import type { NextRequest } from 'next/server'
 import type { GmailMessage } from '@/types'
 import * as quotedPrintable from 'quoted-printable'
 import { convert } from 'html-to-text'

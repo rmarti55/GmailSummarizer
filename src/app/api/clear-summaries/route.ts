@@ -1,4 +1,4 @@
-import { createClient } from '../../../../lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
@@ -26,6 +26,6 @@ export async function POST() {
 
   } catch (error) {
     console.error('Clear summaries error:', error)
-    return NextResponse.json({ error: 'Failed to clear summaries', details: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to clear summaries', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 })
   }
 }
