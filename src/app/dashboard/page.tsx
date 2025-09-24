@@ -222,7 +222,7 @@ export default function Dashboard() {
                   </p>
                   
                   {email.summary ? (
-                    <AdaptiveSummary email={email} />
+                    <AdaptiveSummary email={email as any} />
                   ) : (
                     <Button
                       onClick={() => summarizeEmail(email.id)}

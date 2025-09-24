@@ -36,6 +36,7 @@ export interface GmailMessage {
       data?: string
     }
     parts?: Array<{
+      mimeType?: string
       body?: {
         data?: string
       }

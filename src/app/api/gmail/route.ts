@@ -1,12 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 import type { GmailMessage } from '@/types'
-import * as quotedPrintable from 'quoted-printable'
-import { convert } from 'html-to-text'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient()
     
@@ -93,10 +90,8 @@ export async function GET(request: NextRequest) {
               // First decode from base64
               let decoded = Buffer.from(data, 'base64').toString('utf-8')
               
-              // Check if content uses quoted-printable encoding and decode it
-              if (decoded.includes('=') && /=[0-9A-F]{2}/.test(decoded)) {
-                decoded = quotedPrintable.decode(decoded)
-              }
+              // Simple decoding for quoted-printable soft line breaks
+              decoded = decoded.replace(/=\r?\n/g, '')
               
               return decoded.trim()
             } catch (error) {
@@ -182,17 +177,9 @@ export async function GET(request: NextRequest) {
                 const coreMessage = extractCoreMessage(partContent)
                 fullBody += cleanMessageContent(coreMessage) + '\n'
               } else if (part.mimeType === 'text/html' && part.body?.data && !fullBody) {
-                // Use HTML as fallback if no plain text - convert properly
+                // Use HTML as fallback if no plain text - simple HTML stripping
                 const htmlContent = decodeEmailContent(part.body.data)
-                const htmlText = convert(htmlContent, {
-                  wordwrap: 130,
-                  ignoreHref: true,
-                  selectors: [
-                    { selector: 'img', format: 'skip' },
-                    { selector: 'style', format: 'skip' },
-                    { selector: 'script', format: 'skip' }
-                  ]
-                }).trim()
+                const htmlText = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
                 const coreMessage = extractCoreMessage(htmlText)
                 fullBody = cleanMessageContent(coreMessage)
               }
