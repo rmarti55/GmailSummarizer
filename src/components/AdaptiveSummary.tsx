@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Sparkles, AlertTriangle, Clock, Info, ShoppingBag, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Sparkles, AlertTriangle, Clock, Info, ShoppingBag } from 'lucide-react'
 import { Email } from '../types'
 
 interface AdaptiveSummaryProps {
@@ -7,27 +7,9 @@ interface AdaptiveSummaryProps {
 }
 
 export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
-  const [feedback, setFeedback] = useState<'helpful' | 'not-helpful' | null>(null)
   
   if (!email.summary) return null
 
-  const submitFeedback = async (isHelpful: boolean) => {
-    try {
-      await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          emailId: email.id, 
-          helpful: isHelpful,
-          emailType: email.email_type,
-          confidence: email.classification_confidence
-        })
-      })
-      setFeedback(isHelpful ? 'helpful' : 'not-helpful')
-    } catch (error) {
-      console.error('Failed to submit feedback:', error)
-    }
-  }
 
   // Determine visual styling based on email classification
   const getSummaryStyles = () => {
@@ -157,34 +139,6 @@ export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
         {formatSummary(email.summary)}
       </div>
       
-      {/* Feedback mechanism */}
-      <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <span className="text-xs text-gray-500">Was this summary helpful?</span>
-        <div className="flex items-center space-x-2">
-          {feedback === null ? (
-            <>
-              <button
-                onClick={() => submitFeedback(true)}
-                className="text-gray-400 hover:text-green-600 transition-colors"
-                aria-label="Helpful"
-              >
-                <ThumbsUp className="w-3 h-3" />
-              </button>
-              <button
-                onClick={() => submitFeedback(false)}
-                className="text-gray-400 hover:text-red-600 transition-colors"
-                aria-label="Not helpful"
-              >
-                <ThumbsDown className="w-3 h-3" />
-              </button>
-            </>
-          ) : (
-            <span className="text-xs text-gray-500">
-              Thanks for your feedback!
-            </span>
-          )}
-        </div>
-      </div>
 
       {/* Show classification confidence for debugging (can remove in production) */}
       {process.env.NODE_ENV === 'development' && email.classification_confidence && (

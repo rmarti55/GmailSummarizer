@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
 import type { GmailMessage } from '@/types'
+import { EmailContentParser } from '@/lib/email-parser'
 
 export async function GET() {
   try {
@@ -81,7 +82,7 @@ export async function GET() {
         const sender = headers.find(h => h.name === 'From')?.value || 'Unknown'
         const subject = headers.find(h => h.name === 'Subject')?.value || 'No Subject'
         
-        // Extract and decode email body content properly
+        // Extract and decode email body content with robust parsing
         let fullBody = ''
         try {
           // Helper function to decode email content with proper encoding handling
@@ -100,89 +101,29 @@ export async function GET() {
             }
           }
 
-          // Helper function to extract core message content (before reply chains)
-          const extractCoreMessage = (text: string) => {
-            // Split at common reply markers and take only the first part
-            const replyMarkers = [
-              /On .+? wrote:/i,
-              /From:.+?Sent:/i,
-              /-----Original Message-----/i,
-              /----- Forwarded Message -----/i,
-              /\d{1,2}\/\d{1,2}\/\d{4}.+?wrote:/i
-            ]
-            
-            let coreMessage = text
-            for (const marker of replyMarkers) {
-              const match = coreMessage.search(marker)
-              if (match !== -1) {
-                coreMessage = coreMessage.substring(0, match)
-                break
-              }
-            }
-            
-            return coreMessage.trim()
-          }
-
-          // Helper function to clean and format message content like Gmail
-          const cleanMessageContent = (text: string) => {
-            // Remove email reply arrows and threading markup
-            let cleaned = text
-              .replace(/^>+\s*/gm, '') // Remove reply arrows at start of lines
-              .replace(/\s*>+\s*/g, ' ') // Remove inline reply arrows
-              .replace(/--\s*$/m, '') // Remove signature separator
-            
-            // Remove URLs
-            cleaned = cleaned.replace(/<?\b(?:https?:\/\/|www\.)[^\s<>]+>?/gi, '')
-            
-            // Split into paragraphs and preserve structure
-            const paragraphs = cleaned
-              .split(/\n\s*\n|\r\n\s*\r\n/) // Split on double line breaks
-              .map(p => p.replace(/\s+/g, ' ').trim()) // Clean whitespace within paragraphs
-              .filter(p => p.length > 0) // Remove empty paragraphs
-            
-            // Intelligent truncation - take first 2-3 paragraphs or ~200 words
-            let result = ''
-            let wordCount = 0
-            const maxWords = 200
-            let truncated = false
-            
-            for (const paragraph of paragraphs) {
-              const words = paragraph.split(' ')
-              if (wordCount + words.length > maxWords && result.length > 0) {
-                truncated = true
-                break
-              }
-              result += paragraph + '\n\n'
-              wordCount += words.length
-            }
-            
-            // Add ellipsis if truncated
-            if (truncated) {
-              result = result.trim() + '...'
-            }
-            
-            return result.trim()
-          }
-
           if (message.payload?.body?.data) {
             // Simple text email
             const rawContent = decodeEmailContent(message.payload.body.data)
-            const coreMessage = extractCoreMessage(rawContent)
-            fullBody = cleanMessageContent(coreMessage)
+            fullBody = EmailContentParser.processEmailContent(rawContent)
           } else if (message.payload?.parts) {
-            // Multi-part email - extract text parts
+            // Multi-part email - prioritize text/plain over text/html
+            let plainTextContent = ''
+            let htmlContent = ''
+            
             for (const part of message.payload.parts) {
               if (part.mimeType === 'text/plain' && part.body?.data) {
                 const partContent = decodeEmailContent(part.body.data)
-                const coreMessage = extractCoreMessage(partContent)
-                fullBody += cleanMessageContent(coreMessage) + '\n'
-              } else if (part.mimeType === 'text/html' && part.body?.data && !fullBody) {
-                // Use HTML as fallback if no plain text - simple HTML stripping
-                const htmlContent = decodeEmailContent(part.body.data)
-                const htmlText = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-                const coreMessage = extractCoreMessage(htmlText)
-                fullBody = cleanMessageContent(coreMessage)
+                plainTextContent += partContent + '\n'
+              } else if (part.mimeType === 'text/html' && part.body?.data) {
+                htmlContent = decodeEmailContent(part.body.data)
               }
+            }
+            
+            // Use plain text if available, otherwise process HTML with cheerio
+            if (plainTextContent.trim()) {
+              fullBody = EmailContentParser.processEmailContent(plainTextContent)
+            } else if (htmlContent) {
+              fullBody = EmailContentParser.processEmailContent(htmlContent)
             }
           }
         } catch (bodyError) {
