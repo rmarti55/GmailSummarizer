@@ -7,20 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Mail, RefreshCw, Sparkles, LogOut } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
-
-interface Email {
-  id: string
-  sender: string
-  subject: string
-  body_preview: string
-  summary?: string
-  created_at: string
-  email_type?: string
-  urgency_level?: string
-  action_required?: boolean
-  classification_confidence?: number
-  estimated_read_time?: number
-}
+import { Email } from '@/types'
 
 export default function Dashboard() {
   const [emails, setEmails] = useState<Email[]>([])
@@ -222,7 +209,7 @@ export default function Dashboard() {
                   </p>
                   
                   {email.summary ? (
-                    <AdaptiveSummary email={email as any} />
+                    <AdaptiveSummary email={email} />
                   ) : (
                     <Button
                       onClick={() => summarizeEmail(email.id)}
