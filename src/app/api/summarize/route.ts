@@ -2,6 +2,8 @@ import { createClient } from '../../../../lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import Groq from 'groq-sdk'
+import { EmailClassifier } from '../../../lib/email-classifier'
+import { SummaryTemplateEngine } from '../../../lib/summary-templates'
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -56,51 +58,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ summary: email.summary })
     }
 
-    // Generate summary using Groq
-    console.log('🤖 Generating AI summary...')
-    const prompt = `Analyze this email and provide a clear, actionable summary. Focus on:
-- Key action items or requests
-- Important deadlines or dates
-- Main decisions or information
-- Next steps required
+    // Classify email type and generate adaptive summary
+    console.log('🔍 Classifying email type...')
+    const classification = EmailClassifier.classify({
+      sender: email.sender,
+      subject: email.subject,
+      body_preview: email.body_preview
+    })
+    
+    console.log('📊 Email classified as:', classification.type, 'with confidence:', classification.confidence)
+    
+    // Get appropriate template based on classification
+    const template = SummaryTemplateEngine.getTemplate(classification, {
+      sender: email.sender,
+      subject: email.subject,
+      body_preview: email.body_preview
+    })
 
-From: ${email.sender}
-Subject: ${email.subject}
-Content: ${email.body_preview}
-
-Provide a concise 2-3 sentence summary highlighting the most important points:`
-
-    let summary: string
+    console.log('🤖 Generating adaptive AI summary...')
+    let rawSummary: string
     try {
       const completion = await groq.chat.completions.create({
         messages: [
           {
             role: 'user',
-            content: prompt,
+            content: template.prompt,
           },
         ],
         model: 'openai/gpt-oss-120b',
-        temperature: 0.1,
-        max_tokens: 400,
+        temperature: template.temperature,
+        max_tokens: template.maxTokens,
       })
 
-      summary = completion.choices[0]?.message?.content?.trim() || ''
+      rawSummary = completion.choices[0]?.message?.content?.trim() || ''
 
-      if (!summary) {
+      if (!rawSummary) {
         console.error('❌ Groq returned empty summary')
         return NextResponse.json({ error: 'Failed to generate summary' }, { status: 500 })
       }
 
-      console.log('✅ Generated summary:', summary.substring(0, 100) + '...')
+      console.log('✅ Generated raw summary:', rawSummary.substring(0, 100) + '...')
     } catch (groqError) {
       console.error('❌ Groq API error:', groqError)
       return NextResponse.json({ error: 'AI service error', details: groqError }, { status: 500 })
     }
 
-    // Update email with summary
+    // Format summary with post-processing
+    const summary = SummaryTemplateEngine.formatSummary(rawSummary, classification)
+
+    // Update email with summary and classification data
     const { error: updateError } = await supabase
       .from('emails')
-      .update({ summary })
+      .update({ 
+        summary,
+        email_type: classification.type,
+        urgency_level: classification.urgencyLevel,
+        action_required: classification.actionRequired,
+        classification_confidence: classification.confidence,
+        estimated_read_time: classification.estimatedReadTime
+      })
       .eq('id', emailId)
       .eq('user_id', user.id)
 

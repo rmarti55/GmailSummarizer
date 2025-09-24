@@ -4,9 +4,15 @@ export interface Email {
   sender: string
   subject: string
   summary: string | null
+  body_preview: string
   created_at: string
   user_id: string
   read: boolean
+  email_type?: string
+  urgency_level?: string
+  action_required?: boolean
+  classification_confidence?: number
+  estimated_read_time?: number
 }
 
 export interface User {

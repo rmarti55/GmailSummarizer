@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Mail, RefreshCw, Sparkles, LogOut } from 'lucide-react'
+import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 
 interface Email {
   id: string
@@ -14,6 +15,11 @@ interface Email {
   body_preview: string
   summary?: string
   created_at: string
+  email_type?: string
+  urgency_level?: string
+  action_required?: boolean
+  classification_confidence?: number
+  estimated_read_time?: number
 }
 
 export default function Dashboard() {
@@ -67,6 +73,36 @@ export default function Dashboard() {
     }
   }
 
+  const clearAllSummaries = async () => {
+    if (!confirm('Clear all existing summaries? They will be regenerated with the new adaptive system.')) return
+    
+    try {
+      const response = await fetch('/api/clear-summaries', { method: 'POST' })
+      if (response.ok) {
+        // Refresh emails to show cleared summaries
+        fetchEmails()
+        alert('All summaries cleared! Click "Summarize" to generate new adaptive summaries.')
+      }
+    } catch (error) {
+      console.error('Failed to clear summaries:', error)
+    }
+  }
+
+  const clearAllEmails = async () => {
+    if (!confirm('Clear all cached emails? They will be re-processed with clean formatting on next refresh.')) return
+    
+    try {
+      const response = await fetch('/api/clear-emails', { method: 'POST' })
+      if (response.ok) {
+        // Clear emails from UI immediately
+        setEmails([])
+        alert('All emails cleared! Click "Refresh" to fetch and process emails with clean formatting.')
+      }
+    } catch (error) {
+      console.error('Failed to clear emails:', error)
+    }
+  }
+
   useEffect(() => {
     fetchEmails()
   }, [])
@@ -95,6 +131,14 @@ export default function Dashboard() {
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
+              </Button>
+              
+              <Button variant="ghost" size="sm" onClick={clearAllSummaries} className="mr-2">
+                Clear Summaries
+              </Button>
+              
+              <Button variant="ghost" size="sm" onClick={clearAllEmails} className="mr-2">
+                Clear All Emails
               </Button>
               
               <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -178,17 +222,7 @@ export default function Dashboard() {
                   </p>
                   
                   {email.summary ? (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                          AI Summary
-                        </span>
-                      </div>
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
-                        {email.summary}
-                      </p>
-                    </div>
+                    <AdaptiveSummary email={email} />
                   ) : (
                     <Button
                       onClick={() => summarizeEmail(email.id)}
