@@ -98,34 +98,14 @@ export class EmailContentParser {
     // Remove URLs for cleaner display
     let cleaned = text.replace(/<?\b(?:https?:\/\/|www\.)[^\s<>]+>?/gi, '[link]')
     
-    // Split into paragraphs and preserve structure
+    // Simple paragraph splitting - keep existing line breaks if they exist
     const paragraphs = cleaned
       .split(/\n\s*\n|\r\n\s*\r\n/) // Split on double line breaks
       .map(p => p.replace(/\s+/g, ' ').trim()) // Clean whitespace within paragraphs
       .filter(p => p.length > 0) // Remove empty paragraphs
 
-    // Intelligent truncation - take first 2-3 paragraphs or ~200 words
-    let result = ''
-    let wordCount = 0
-    const maxWords = 200
-    let truncated = false
-    
-    for (const paragraph of paragraphs) {
-      const words = paragraph.split(' ')
-      if (wordCount + words.length > maxWords && result.length > 0) {
-        truncated = true
-        break
-      }
-      result += paragraph + '\n\n'
-      wordCount += words.length
-    }
-    
-    // Add ellipsis if truncated
-    if (truncated) {
-      result = result.trim() + '...'
-    }
-    
-    return result.trim()
+    // Return as single line for consistent database storage
+    return paragraphs.join(' ')
   }
 
   /**

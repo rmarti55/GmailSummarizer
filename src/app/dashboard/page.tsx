@@ -14,6 +14,21 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [summarizing, setSummarizing] = useState<string | null>(null)
 
+  // Format email text into readable paragraphs
+  const formatEmailText = (text: string): string => {
+    if (!text) return ''
+    
+    return text
+      .split(/\. (?=[A-Z])/) // Split at sentence boundaries
+      .reduce((acc: string[][], sentence: string, i: number) => {
+        if (i % 2 === 0) acc.push([sentence])
+        else acc[acc.length - 1].push(sentence)
+        return acc
+      }, [])
+      .map(paragraph => paragraph.join('. ') + '.')
+      .join('\n\n')
+  }
+
   const fetchEmails = async () => {
     setLoading(true)
     try {
@@ -204,8 +219,8 @@ export default function Dashboard() {
                 </CardHeader>
                 
                 <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {email.body_preview}
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 whitespace-pre-wrap">
+                    {formatEmailText(email.body_preview)}
                   </p>
                   
                   {email.summary ? (

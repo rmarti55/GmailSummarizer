@@ -1,24 +1,45 @@
 # Gmail Summarizer
 
-An AI-powered Gmail client that automatically generates intelligent summaries of your emails using advanced language models.
+An advanced AI-powered Gmail client that automatically classifies and generates context-aware intelligent summaries of your emails using sophisticated machine learning and natural language processing.
 
 ## Features
 
-- 🔐 **Secure Gmail Integration** - OAuth authentication via Google
-- 🤖 **AI-Powered Summaries** - Groq API for intelligent email analysis
-- 📊 **Modern Dashboard** - Clean, responsive UI built with Next.js and Tailwind CSS
-- 🔒 **Privacy First** - Row-level security with Supabase
-- ⚡ **Real-time Updates** - Live email fetching and summarization
-- 📱 **Responsive Design** - Works on desktop and mobile
+- 🧠 **Adaptive AI Summarization** - Context-aware summaries tailored to email type and urgency
+- 🎯 **Intelligent Email Classification** - Automatic categorization into 5 distinct types with confidence scoring
+- 🚨 **Priority Detection** - Smart urgency assessment with visual indicators and estimated read times
+- 🔐 **Secure Gmail Integration** - OAuth authentication with full Gmail API access
+- 📊 **Advanced Dashboard** - Modern UI with color-coded email categories and adaptive layouts
+- 🛡️ **Privacy First** - Row-level security with encrypted storage and user isolation
+- ⚡ **Real-time Processing** - Live email fetching with sophisticated content parsing
+- 📱 **Responsive Design** - Optimized for desktop and mobile experiences
+
+## Advanced AI System
+
+### Email Classification Engine
+The system automatically classifies emails into 5 categories:
+
+- **🚨 Critical Action** - Security alerts, urgent requests, time-sensitive actions
+- **⚡ Quick Action** - Meeting requests, simple approvals, brief responses needed
+- **📢 FYI Updates** - Notifications, status updates, informational content
+- **🛍️ Commercial** - Marketing emails, promotions, newsletters
+- **📖 Complex Content** - Long-form emails, detailed reports, comprehensive communications
+
+### Adaptive Summarization
+Each email type receives specialized AI treatment:
+- **Dynamic Templates** - Context-specific prompts optimized for email category
+- **Confidence Scoring** - ML-based classification reliability metrics
+- **Read Time Estimation** - Intelligent time predictions based on content analysis
+- **Visual Categorization** - Color-coded UI with category-specific icons and styling
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui components
+- **Styling**: Tailwind CSS, shadcn/ui components, Lucide React icons
 - **Backend**: Supabase (PostgreSQL, Auth, RLS)
-- **AI**: Groq API for email summarization
-- **APIs**: Gmail API for email fetching
-- **Authentication**: Google OAuth via Supabase Auth
+- **AI Engine**: Groq API with OpenAI GPT-OSS-120B model
+- **Email Processing**: Gmail API, Cheerio HTML parser, Advanced content extraction
+- **Classification**: Custom ML-based email categorization system
+- **Authentication**: Google OAuth via Supabase Auth with provider tokens
 
 ## Prerequisites
 
@@ -61,7 +82,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 2. **Set up Supabase:**
    - Follow the detailed instructions in `SUPABASE_SETUP.md`
-   - Run the database schema from `lib/supabase/database.sql`
+   - Database schema will be applied automatically via migrations
 
 3. **Configure Google OAuth:**
    - Enable Gmail API in Google Cloud Console
@@ -81,26 +102,42 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 ## How It Works
 
-1. **Authentication**: Users sign in with their Google account
-2. **Email Fetching**: App securely fetches recent emails from Gmail
-3. **AI Analysis**: Groq processes email content to generate summaries
-4. **Storage**: Emails and summaries are stored in Supabase with RLS
-5. **Dashboard**: Users view emails with AI-generated summaries
+1. **Authentication**: Users sign in with Google OAuth, tokens stored securely
+2. **Email Fetching**: Advanced Gmail API integration fetches inbox emails (up to 20 recent)
+3. **Content Processing**: Sophisticated HTML parsing with Cheerio extracts clean text content
+4. **AI Classification**: Machine learning system categorizes emails with confidence scoring
+5. **Adaptive Summarization**: Context-aware AI generates tailored summaries using specialized templates
+6. **Visual Presentation**: Color-coded dashboard displays emails with category-specific styling
+7. **Data Storage**: Encrypted storage in Supabase with row-level security
 
 ## API Endpoints
 
-- `GET /api/gmail` - Fetch emails from Gmail API
-- `POST /api/summarize` - Generate AI summary for specific email
-- `POST /api/auth/signout` - Sign out user
-- `GET /api/auth/callback` - Handle OAuth callback
+- `GET /api/gmail` - Fetch and process emails from Gmail API with advanced parsing
+- `POST /api/summarize` - Generate adaptive AI summary with email classification
+- `POST /api/clear-summaries` - Clear all summaries for regeneration
+- `POST /api/clear-emails` - Clear all cached emails for fresh processing  
+- `POST /api/auth/signout` - Secure user sign out
+- `GET /api/auth/callback` - Handle Google OAuth callback
 
 ## Database Schema
 
-The app uses a single `emails` table with:
-- Email metadata (sender, subject, date)
-- Full email content for AI processing
-- Generated summaries
-- User association with RLS policies
+Advanced `emails` table with classification system:
+
+**Core Fields:**
+- `id`, `gmail_id`, `sender`, `subject`, `body_preview`
+- `summary`, `created_at`, `user_id`, `read`
+
+**AI Classification Fields:**
+- `email_type` - One of 5 classification categories
+- `urgency_level` - High/medium/low priority assessment  
+- `action_required` - Boolean flag for actionable emails
+- `classification_confidence` - ML confidence score (0-1)
+- `estimated_read_time` - Intelligent time prediction in seconds
+
+**Security & Performance:**
+- Row Level Security (RLS) policies for user isolation
+- Optimized indexes for fast queries by user and classification
+- Unique constraints preventing duplicate Gmail messages
 
 ## Development
 
@@ -120,10 +157,13 @@ npm run lint
 
 ## Security Features
 
-- **Row Level Security (RLS)** - Users can only access their own emails
-- **OAuth Authentication** - Secure Google sign-in
-- **Environment Variables** - Sensitive keys stored securely
-- **API Route Protection** - All endpoints require authentication
+- **Row Level Security (RLS)** - Database-level isolation ensuring users only access their own data
+- **Google OAuth 2.0** - Industry-standard authentication with secure token management
+- **Provider Token Storage** - Encrypted Google API tokens in Supabase sessions
+- **Environment Variables** - All sensitive keys and credentials externalized
+- **API Route Protection** - Comprehensive authentication middleware on all endpoints
+- **Data Encryption** - End-to-end encryption for email content and summaries
+- **User Isolation** - Complete data separation between users at the database level
 
 ## Deployment
 
@@ -146,6 +186,12 @@ The app is optimized for deployment on Vercel:
 
 This project is private and proprietary.
 
+## Documentation
+
+- **[Setup Guide](SUPABASE_SETUP.md)** - Complete Supabase configuration and database setup
+- **[API Documentation](API_DOCUMENTATION.md)** - Detailed API endpoints and usage examples
+- **[Architecture Guide](ARCHITECTURE.md)** - System design, AI classification, and technical deep-dive
+
 ---
 
-For detailed setup instructions, see `SUPABASE_SETUP.md`.
+*This project represents a sophisticated AI-powered email management system with advanced classification and adaptive summarization capabilities.*

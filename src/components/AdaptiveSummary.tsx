@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Sparkles, AlertTriangle, Clock, Info, ShoppingBag } from 'lucide-react'
+import { Sparkles, AlertTriangle, Clock, Info, ShoppingBag, ChevronDown } from 'lucide-react'
 import { Email } from '../types'
 
 interface AdaptiveSummaryProps {
@@ -7,6 +7,7 @@ interface AdaptiveSummaryProps {
 }
 
 export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
+  const [isExpanded, setIsExpanded] = useState(true)
   
   if (!email.summary) return null
 
@@ -116,6 +117,17 @@ export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
           <span className={`text-sm font-medium ${styles.titleClass}`}>
             {styles.title}
           </span>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`ml-1 p-0.5 rounded-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${styles.iconClass}`}
+            aria-label={isExpanded ? 'Collapse summary' : 'Expand summary'}
+          >
+            <ChevronDown 
+              className={`w-3 h-3 transition-transform duration-200 ${
+                isExpanded ? 'rotate-0' : '-rotate-90'
+              }`}
+            />
+          </button>
         </div>
         
         {/* Show estimated read time and urgency for actionable emails */}
@@ -135,8 +147,14 @@ export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
         )}
       </div>
       
-      <div className={styles.textClass}>
-        {formatSummary(email.summary)}
+      <div 
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+        }`}
+      >
+        <div className={styles.textClass}>
+          {formatSummary(email.summary)}
+        </div>
       </div>
       
 

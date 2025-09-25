@@ -151,9 +151,12 @@ export async function GET() {
         console.error(`❌ Failed to process email ${index + 1}:`, error)
         return null
       }
-    }).filter(email => email !== null)
+    })
 
-    console.log(`📋 Successfully processed ${processedEmails.length} emails for database save`)
+    // Filter out any failed email processing
+    const validProcessedEmails = processedEmails.filter(email => email !== null)
+
+    console.log(`📋 Successfully processed ${validProcessedEmails.length} emails for database save`)
 
     // Store emails in Supabase (upsert to avoid duplicates)
     console.log('💾 Saving emails to database...')
@@ -163,7 +166,7 @@ export async function GET() {
     try {
       const { data: emails, error: dbError } = await supabase
         .from('emails')
-        .upsert(processedEmails, { 
+        .upsert(validProcessedEmails, { 
           onConflict: 'gmail_id,user_id',
           ignoreDuplicates: false  // Changed to false to see what's happening
         })
