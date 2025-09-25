@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Mail, RefreshCw, Sparkles, LogOut } from 'lucide-react'
+import { Mail, RefreshCw, Sparkles, LogOut, ExternalLink } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { Email } from '@/types'
 
@@ -119,9 +119,14 @@ export default function Dashboard() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <Mail className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Gmail Summarizer
-              </h1>
+              <div className="flex items-center space-x-3">
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Gmail Summarizer
+                </h1>
+                <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  GPT-OSS-120B
+                </Badge>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -223,28 +228,40 @@ export default function Dashboard() {
                     {formatEmailText(email.body_preview)}
                   </p>
                   
-                  {email.summary ? (
-                    <AdaptiveSummary email={email} />
-                  ) : (
+                  <div className="space-y-3">
+                    {email.summary ? (
+                      <AdaptiveSummary email={email} />
+                    ) : (
+                      <Button
+                        onClick={() => summarizeEmail(email.id)}
+                        disabled={summarizing === email.id}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {summarizing === email.id ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            Summarizing...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Summarize
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
                     <Button
-                      onClick={() => summarizeEmail(email.id)}
-                      disabled={summarizing === email.id}
+                      onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
                       variant="outline"
                       size="sm"
+                      className="bg-white hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 hover:border-red-300 transition-colors"
                     >
-                      {summarizing === email.id ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          Summarizing...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Summarize
-                        </>
-                      )}
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      View in Gmail
                     </Button>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             ))
