@@ -8,12 +8,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Mail, RefreshCw, Sparkles, LogOut, ExternalLink } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { AppHeader } from '@/components/AppHeader'
+import { PaginationControls } from '@/components/PaginationControls'
 import { Email } from '@/types'
 
 export default function Dashboard() {
   const [emails, setEmails] = useState<Email[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [summarizing, setSummarizing] = useState<string | null>(null)
+  const [totalEmailCount, setTotalEmailCount] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const EMAILS_PER_PAGE = 20
 
   // Format email text into readable paragraphs
   const formatEmailText = (text: string): string => {
@@ -30,17 +35,37 @@ export default function Dashboard() {
       .join('\n\n')
   }
 
-  const fetchEmails = async () => {
-    setLoading(true)
+  const fetchEmailCount = async () => {
     try {
-      const response = await fetch('/api/gmail')
+      const response = await fetch('/api/gmail/count')
       if (response.ok) {
         const data = await response.json()
-        const emails = data.emails || []
-        setEmails(emails)
+        setTotalEmailCount(data.totalEmails)
+      }
+    } catch (error) {
+      console.error('Failed to fetch email count:', error)
+    }
+  }
+
+  const fetchEmails = async (page: number = 1) => {
+    setLoading(true)
+
+    try {
+      const offset = (page - 1) * EMAILS_PER_PAGE
+      const response = await fetch(`/api/gmail/count?limit=${EMAILS_PER_PAGE}&offset=${offset}`)
+      if (response.ok) {
+        const data = await response.json()
+        const newEmails = data.emails || []
+        
+        setEmails(newEmails)
+        
+        // Make sure total count is set correctly - fix stale count bug
+        if (totalEmailCount === 0 || newEmails.length > totalEmailCount) {
+          fetchEmailCount()
+        }
         
         // Auto-summarize emails that don't have summaries
-        emails.forEach((email: Email) => {
+        newEmails.forEach((email: Email) => {
           if (!email.summary) {
             summarizeEmail(email.id)
           }
@@ -49,7 +74,22 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to fetch emails:', error)
     }
+    
     setLoading(false)
+  }
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    fetchEmails(page)
+  }
+
+  const handleFullSync = () => {
+    // The full sync will be handled by the EmailStatsBar component
+    // We just need to refresh the count and emails after sync
+    setTimeout(() => {
+      fetchEmailCount()
+      fetchEmails()
+    }, 1000)
   }
 
   const summarizeEmail = async (emailId: string) => {
@@ -115,16 +155,18 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    fetchEmailCount()
     fetchEmails()
   }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <AppHeader
-        onRefresh={fetchEmails}
+        onRefresh={() => fetchEmails()}
         onClearSummaries={clearAllSummaries}
         onClearAllEmails={clearAllEmails}
         onLogout={handleLogout}
+        onFullSync={handleFullSync}
         loading={loading}
       />
 
@@ -134,10 +176,28 @@ export default function Dashboard() {
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Your Inbox
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            AI-powered summaries of your recent emails
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600 dark:text-gray-400">
+              AI-powered summaries of your recent emails
+            </p>
+            {totalEmailCount > 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {totalEmailCount.toLocaleString()} total emails
+              </p>
+            )}
+          </div>
         </div>
+
+        {/* Top Pagination Controls */}
+        {!loading && emails.length > 0 && totalEmailCount > EMAILS_PER_PAGE && (
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalEmailCount / EMAILS_PER_PAGE)}
+            totalCount={totalEmailCount}
+            itemsPerPage={EMAILS_PER_PAGE}
+            onPageChange={handlePageChange}
+          />
+        )}
 
         {/* Email List */}
         <div className="space-y-4">
@@ -236,6 +296,17 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             ))
+          )}
+          
+          {/* Bottom Pagination Controls */}
+          {!loading && emails.length > 0 && totalEmailCount > EMAILS_PER_PAGE && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={Math.ceil(totalEmailCount / EMAILS_PER_PAGE)}
+              totalCount={totalEmailCount}
+              itemsPerPage={EMAILS_PER_PAGE}
+              onPageChange={handlePageChange}
+            />
           )}
         </div>
       </main>

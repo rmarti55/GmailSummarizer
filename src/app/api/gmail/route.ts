@@ -119,11 +119,11 @@ export async function GET() {
               }
             }
             
-            // Use plain text if available, otherwise process HTML with cheerio
-            if (plainTextContent.trim()) {
-              fullBody = EmailContentParser.processEmailContent(plainTextContent)
-            } else if (htmlContent) {
+            // Prioritize HTML for rich content, fallback to plain text
+            if (htmlContent.trim()) {
               fullBody = EmailContentParser.processEmailContent(htmlContent)
+            } else if (plainTextContent.trim()) {
+              fullBody = EmailContentParser.processEmailContent(plainTextContent)
             }
           }
         } catch (bodyError) {

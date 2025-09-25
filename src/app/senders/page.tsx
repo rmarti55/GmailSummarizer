@@ -5,17 +5,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
+import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
 import { Mail, BarChart3 } from 'lucide-react'
-
-interface SenderStats {
-  sender: string
-  count: number
-  percentage: number
-}
+import { SenderStats, PaginationInfo, Email } from '@/types'
 
 export default function SendersPage() {
   const [senders, setSenders] = useState<SenderStats[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedSender, setExpandedSender] = useState<string | null>(null)
+  const [senderEmails, setSenderEmails] = useState<Record<string, Email[]>>({})
+  const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
+  const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
 
   const handleRefresh = async () => {
     // For now, just refresh sender stats
@@ -64,28 +64,51 @@ export default function SendersPage() {
   const fetchSenderStats = async () => {
     setLoading(true)
     try {
-      // TODO: Implement API endpoint for sender statistics
-      // const response = await fetch('/api/senders')
-      // if (response.ok) {
-      //   const data = await response.json()
-      //   setSenders(data.senders || [])
-      // }
-      
-      // Mock data for now
-      setTimeout(() => {
-        setSenders([
-          { sender: 'notifications@github.com', count: 47, percentage: 23.5 },
-          { sender: 'noreply@robinhood.com', count: 31, percentage: 15.5 },
-          { sender: 'alerts@bankofamerica.com', count: 28, percentage: 14.0 },
-          { sender: 'team@slack.com', count: 22, percentage: 11.0 },
-          { sender: 'support@notion.so', count: 18, percentage: 9.0 },
-        ])
-        setLoading(false)
-      }, 1000)
+      const response = await fetch('/api/senders')
+      if (response.ok) {
+        const data = await response.json()
+        setSenders(data.senders || [])
+      } else {
+        console.error('Failed to fetch sender stats')
+      }
     } catch (error) {
       console.error('Failed to fetch sender stats:', error)
-      setLoading(false)
     }
+    setLoading(false)
+  }
+
+  const fetchSenderEmails = async (sender: string, page: number = 1) => {
+    setSenderLoading(prev => ({ ...prev, [sender]: true }))
+    try {
+      const response = await fetch(`/api/senders/${encodeURIComponent(sender)}/emails?page=${page}&limit=10`)
+      if (response.ok) {
+        const data = await response.json()
+        setSenderEmails(prev => ({ ...prev, [sender]: data.emails || [] }))
+        setSenderPagination(prev => ({ ...prev, [sender]: data.pagination }))
+      } else {
+        console.error('Failed to fetch sender emails')
+      }
+    } catch (error) {
+      console.error('Failed to fetch sender emails:', error)
+    }
+    setSenderLoading(prev => ({ ...prev, [sender]: false }))
+  }
+
+  const handleToggleExpand = async (sender: string) => {
+    if (expandedSender === sender) {
+      // Collapse
+      setExpandedSender(null)
+    } else {
+      // Expand
+      setExpandedSender(sender)
+      if (!senderEmails[sender]) {
+        await fetchSenderEmails(sender, 1)
+      }
+    }
+  }
+
+  const handlePageChange = async (sender: string, page: number) => {
+    await fetchSenderEmails(sender, page)
   }
 
   useEffect(() => {
@@ -115,31 +138,30 @@ export default function SendersPage() {
           </p>
         </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Mail className="w-5 h-5" />
-            <span>Top Senders</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-4">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-1/3" />
-                    <Skeleton className="h-3 w-1/4" />
+        {loading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-20" />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-12" />
-                    <Skeleton className="h-3 w-16" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : senders.length === 0 ? (
-            <div className="text-center py-8">
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : senders.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
               <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 No email data found
@@ -147,39 +169,31 @@ export default function SendersPage() {
               <p className="text-gray-600 dark:text-gray-400">
                 Visit the Dashboard to fetch emails first
               </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {senders.map((sender, index) => (
-                <div key={sender.sender} className="flex items-center justify-between py-3 border-b last:border-b-0 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-2 transition-colors">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded-full font-semibold text-sm">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {sender.sender}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {sender.percentage}% of total emails
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="secondary" className="text-sm">
-                      {sender.count} emails
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {senders.map((sender, index) => (
+              <ExpandableSenderCard
+                key={sender.sender}
+                sender={sender}
+                rank={index + 1}
+                isExpanded={expandedSender === sender.sender}
+                onToggleExpand={handleToggleExpand}
+                emails={senderEmails[sender.sender] || []}
+                pagination={senderPagination[sender.sender] || null}
+                loading={senderLoading[sender.sender] || false}
+                onPageChange={handlePageChange}
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-          💡 Click any sender to see their emails (coming soon)
-        </div>
+        {senders.length > 0 && (
+          <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
+            💡 Click any sender to see their emails with AI summaries
+          </div>
+        )}
       </main>
     </div>
   )

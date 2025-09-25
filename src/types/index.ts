@@ -45,5 +45,20 @@ export interface GmailMessage {
   internalDate: string
 }
 
+export interface SenderStats {
+  sender: string
+  count: number
+  percentage: number
+}
+
+export interface PaginationInfo {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
 
 
