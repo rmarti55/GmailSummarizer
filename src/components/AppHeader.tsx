@@ -69,6 +69,16 @@ export function AppHeader({
                 >
                   Senders
                 </Link>
+                <Link 
+                  href="/insights" 
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/insights')
+                      ? 'text-primary hover:text-primary/80'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Insights
+                </Link>
               </nav>
               
               <AccountDropdown

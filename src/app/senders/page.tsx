@@ -116,7 +116,7 @@ export default function SendersPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-background">
       <AppHeader
         onRefresh={handleRefresh}
         onClearSummaries={clearAllSummaries}
@@ -128,12 +128,12 @@ export default function SendersPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <div className="flex items-center space-x-3 mb-2">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <BarChart3 className="w-6 h-6 text-primary" />
+            <h2 className="text-2xl font-bold text-foreground">
               Email Senders Overview
             </h2>
           </div>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Ranked by email volume in your inbox
           </p>
         </div>
@@ -162,11 +162,11 @@ export default function SendersPage() {
         ) : senders.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
-              <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
                 No email data found
               </h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-muted-foreground">
                 Visit the Dashboard to fetch emails first
               </p>
             </CardContent>
@@ -190,7 +190,7 @@ export default function SendersPage() {
         )}
 
         {senders.length > 0 && (
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
+          <div className="text-center text-sm text-muted-foreground mt-8">
             💡 Click any sender to see their emails with AI summaries
           </div>
         )}

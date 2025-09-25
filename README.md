@@ -112,12 +112,26 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 ## API Endpoints
 
+### Core Email Processing
 - `GET /api/gmail` - Fetch and process emails from Gmail API with advanced parsing
+- `GET /api/gmail/count` - Get email count and pagination data
+- `GET /api/gmail/sync-status` - Get current synchronization status
+- `POST /api/gmail/full-sync` - Initiate full Gmail synchronization
+
+### AI Summarization
 - `POST /api/summarize` - Generate adaptive AI summary with email classification
+
+### Sender Management
+- `GET /api/senders` - Get sender statistics with counts and percentages
+- `GET /api/senders/[sender]/emails` - Get paginated emails from specific sender
+
+### Data Management
 - `POST /api/clear-summaries` - Clear all summaries for regeneration
-- `POST /api/clear-emails` - Clear all cached emails for fresh processing  
-- `POST /api/auth/signout` - Secure user sign out
+- `POST /api/clear-emails` - Clear all cached emails for fresh processing
+
+### Authentication
 - `GET /api/auth/callback` - Handle Google OAuth callback
+- `POST /api/auth/signout` - Secure user sign out
 
 ## Database Schema
 

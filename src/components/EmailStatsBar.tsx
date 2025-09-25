@@ -111,12 +111,12 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
 
   if (loading) {
     return (
-      <div className="bg-blue-50 dark:bg-blue-950 border-b border-blue-200 dark:border-blue-800">
+      <div className="bg-primary/5 border-b border-primary/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-12">
             <div className="flex items-center space-x-3">
-              <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-              <span className="text-sm text-blue-700 dark:text-blue-300">Loading email stats...</span>
+              <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+              <span className="text-sm text-muted-foreground">Loading email stats...</span>
             </div>
           </div>
         </div>
@@ -170,7 +170,6 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
                 variant="outline" 
                 size="sm" 
                 onClick={handleFullSync}
-                className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 hover:text-blue-700"
               >
                 <Mail className="w-4 h-4 mr-2" />
                 Get All My Emails

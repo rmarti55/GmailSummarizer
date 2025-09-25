@@ -20,8 +20,8 @@ const buttonVariants = cva(
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
         info: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20",
-        success: "bg-green-50 text-green-700 border-green-200 hover:bg-green-100 dark:bg-green-950 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900",
-        warning: "bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800 dark:hover:bg-yellow-900",
+        success: "bg-green-500/10 text-green-700 border-green-500/20 hover:bg-green-500/20 dark:text-green-300 dark:border-green-500/30 dark:hover:bg-green-500/15",
+        warning: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 hover:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30 dark:hover:bg-yellow-500/15",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

@@ -114,7 +114,7 @@ export function ExpandableSenderCard({
             ) : emails.length === 0 ? (
               // Empty state
               <div className="text-center py-8">
-                <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">
                   No emails found
                 </h3>
@@ -151,7 +151,7 @@ export function ExpandableSenderCard({
                             ) : (
                               <div className="bg-muted rounded-lg p-3 border">
                                 <div className="flex items-center space-x-2">
-                                  <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                                  <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                                   <span className="text-sm text-muted-foreground">Generating summary...</span>
                                 </div>
                               </div>

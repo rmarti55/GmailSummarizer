@@ -38,7 +38,7 @@ export function AdaptiveSummary({ email }: AdaptiveSummaryProps) {
   }
 
   return (
-    <div className="text-gray-700 dark:text-gray-300">
+    <div className="text-foreground">
       {formatSummary(email.summary)}
     </div>
   )

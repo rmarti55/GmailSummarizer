@@ -160,7 +160,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-background">
       <AppHeader
         onRefresh={() => fetchEmails()}
         onClearSummaries={clearAllSummaries}
@@ -173,15 +173,15 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
             Your Inbox
           </h2>
           <div className="flex items-center justify-between">
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-muted-foreground">
               AI-powered summaries of your recent emails
             </p>
             {totalEmailCount > 0 && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-muted-foreground">
                 {totalEmailCount.toLocaleString()} total emails
               </p>
             )}
@@ -219,11 +219,11 @@ export default function Dashboard() {
             // Empty state
             <Card>
               <CardContent className="p-12 text-center">
-                <Mail className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">
                   No emails found
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-muted-foreground mb-4">
                   Connect your Gmail account to see your emails here
                 </p>
                 <Button onClick={fetchEmails}>
@@ -240,7 +240,7 @@ export default function Dashboard() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center space-x-2">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <p className="text-sm font-medium text-foreground">
                           {email.sender}
                         </p>
                         <Badge variant="secondary" className="text-xs">
@@ -260,10 +260,10 @@ export default function Dashboard() {
                     {email.summary ? (
                       <AdaptiveSummary email={email} />
                     ) : (
-                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="bg-muted rounded-lg p-4 border">
                         <div className="flex items-center space-x-2">
-                          <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Generating summary...</span>
+                          <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+                          <span className="text-sm text-muted-foreground">Generating summary...</span>
                         </div>
                       </div>
                     )}
@@ -271,13 +271,13 @@ export default function Dashboard() {
                   
                   {/* Original Email Content - Secondary/Collapsible */}
                   <details className="group">
-                    <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-2 flex items-center">
+                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground mb-2 flex items-center">
                       <span>Read full email</span>
                       <svg className="w-4 h-4 ml-1 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     </summary>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted rounded-lg p-3 border">
                       {formatEmailText(email.body_preview)}
                     </div>
                   </details>
@@ -287,7 +287,6 @@ export default function Dashboard() {
                       onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
                       variant="outline"
                       size="sm"
-                      className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 hover:text-blue-700 hover:border-blue-300 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       View in Gmail

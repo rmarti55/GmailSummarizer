@@ -20,6 +20,37 @@ Authorization: Bearer <supabase-session-token>
 #### `GET /api/gmail`
 Fetches and processes emails from the user's Gmail inbox with advanced content parsing.
 
+#### `GET /api/gmail/count`
+Gets email count and pagination data for the authenticated user.
+
+**Query Parameters:**
+- `limit` (optional) - Number of emails to return (if > 0, returns paginated emails)
+- `offset` (optional) - Offset for pagination
+
+**Response (count mode):**
+```json
+{
+  "totalEmails": 42,
+  "lastSyncTime": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response (pagination mode):**
+```json
+{
+  "emails": [...]
+}
+```
+
+#### `GET /api/gmail/sync-status`
+Gets the current synchronization status.
+
+#### `POST /api/gmail/sync-status`
+Updates the synchronization status.
+
+#### `POST /api/gmail/full-sync`
+Initiates a full synchronization of all Gmail messages.
+
 **Features:**
 - Fetches up to 20 recent inbox emails
 - Advanced HTML parsing with Cheerio for clean text extraction
@@ -133,7 +164,49 @@ Removes all cached emails for the authenticated user.
 
 ---
 
-### 4. Authentication
+### 4. Sender Management
+
+#### `GET /api/senders`
+Gets sender statistics with email counts and percentages.
+
+**Response:**
+```json
+{
+  "senders": [
+    {
+      "sender": "example@domain.com",
+      "count": 15,
+      "percentage": 35.7
+    }
+  ]
+}
+```
+
+#### `GET /api/senders/[sender]/emails`
+Gets paginated emails from a specific sender.
+
+**Query Parameters:**
+- `page` (optional) - Page number (default: 1)
+- `limit` (optional) - Items per page (default: 10)
+
+**Response:**
+```json
+{
+  "emails": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 25,
+    "totalPages": 3,
+    "hasNext": true,
+    "hasPrev": false
+  }
+}
+```
+
+---
+
+### 5. Authentication
 
 #### `GET /api/auth/callback`
 Handles Google OAuth callback after user authentication.

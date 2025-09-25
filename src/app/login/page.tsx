@@ -25,11 +25,11 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-            <Mail className="w-6 h-6 text-white" />
+          <div className="mx-auto w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
+            <Mail className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
             <CardTitle className="text-2xl font-bold">Gmail Summarizer</CardTitle>
@@ -46,7 +46,7 @@ export default function LoginPage() {
               <span>AI-powered email summaries</span>
             </div>
             <div className="flex items-center space-x-3 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4 text-blue-500" />
+              <Mail className="w-4 h-4 text-primary" />
               <span>Secure Gmail integration</span>
             </div>
           </div>
