@@ -35,7 +35,15 @@ export default function Dashboard() {
       const response = await fetch('/api/gmail')
       if (response.ok) {
         const data = await response.json()
-        setEmails(data.emails || [])
+        const emails = data.emails || []
+        setEmails(emails)
+        
+        // Auto-summarize emails that don't have summaries
+        emails.forEach((email: Email) => {
+          if (!email.summary) {
+            summarizeEmail(email.id)
+          }
+        })
       }
     } catch (error) {
       console.error('Failed to fetch emails:', error)
@@ -224,39 +232,39 @@ export default function Dashboard() {
                 </CardHeader>
                 
                 <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 whitespace-pre-wrap">
-                    {formatEmailText(email.body_preview)}
-                  </p>
-                  
-                  <div className="space-y-3">
+                  {/* AI Summary First - Main Content */}
+                  <div className="mb-4">
                     {email.summary ? (
                       <AdaptiveSummary email={email} />
                     ) : (
-                      <Button
-                        onClick={() => summarizeEmail(email.id)}
-                        disabled={summarizing === email.id}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {summarizing === email.id ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            Summarizing...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            Summarize
-                          </>
-                        )}
-                      </Button>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center space-x-2">
+                          <RefreshCw className="w-4 h-4 animate-spin text-blue-500" />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Generating summary...</span>
+                        </div>
+                      </div>
                     )}
-                    
+                  </div>
+                  
+                  {/* Original Email Content - Secondary/Collapsible */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mb-2 flex items-center">
+                      <span>Read full email</span>
+                      <svg className="w-4 h-4 ml-1 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </summary>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      {formatEmailText(email.body_preview)}
+                    </div>
+                  </details>
+                  
+                  <div className="mt-4">
                     <Button
                       onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
                       variant="outline"
                       size="sm"
-                      className="bg-white hover:bg-red-50 border-red-200 text-red-600 hover:text-red-700 hover:border-red-300 transition-colors"
+                      className="bg-white hover:bg-blue-50 border-blue-200 text-blue-600 hover:text-blue-700 hover:border-blue-300 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       View in Gmail
