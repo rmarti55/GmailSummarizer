@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Mail, RefreshCw, Sparkles, LogOut, ExternalLink } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
+import { AppHeader } from '@/components/AppHeader'
 import { Email } from '@/types'
 
 export default function Dashboard() {
@@ -119,51 +120,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                <Mail className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex items-center space-x-3">
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Gmail Summarizer
-                </h1>
-                <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                  GPT-OSS-120B
-                </Badge>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <Button 
-                onClick={fetchEmails} 
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              
-              <Button variant="ghost" size="sm" onClick={clearAllSummaries} className="mr-2">
-                Clear Summaries
-              </Button>
-              
-              <Button variant="ghost" size="sm" onClick={clearAllEmails} className="mr-2">
-                Clear All Emails
-              </Button>
-              
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        onRefresh={fetchEmails}
+        onClearSummaries={clearAllSummaries}
+        onClearAllEmails={clearAllEmails}
+        onLogout={handleLogout}
+        loading={loading}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -212,8 +175,8 @@ export default function Dashboard() {
           ) : (
             // Email cards
             emails.map((email) => (
-              <Card key={email.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
+              <Card key={email.id} className="hover:shadow-md transition-shadow gap-0">
+                <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center space-x-2">
