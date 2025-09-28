@@ -64,18 +64,16 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: 'user',
-            content: `Please provide a clear, concise summary of this email:
+            content: `One simple sentence summary:
 
 From: ${email.sender}
 Subject: ${email.subject}
-Content: ${email.body_preview}
-
-Summarize the main point and any important details in 2-3 sentences. Be natural and helpful.`,
+Content: ${email.body_preview}`,
           },
         ],
         model: 'openai/gpt-oss-120b',
         temperature: 0.3,
-        max_tokens: 150,
+        max_tokens: 500,
       })
 
       summary = completion.choices[0]?.message?.content?.trim() || ''
