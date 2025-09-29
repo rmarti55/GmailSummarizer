@@ -1,23 +1,15 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import Groq from 'groq-sdk'
+import { withAuthHandler } from '@/lib/auth-middleware'
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 })
 
-export async function POST(request: NextRequest) {
+export const POST = withAuthHandler(async ({ user, supabase }, request: NextRequest) => {
   console.log('🚀 SUMMARIZE API CALLED - REQUEST RECEIVED')
   try {
-    const supabase = await createClient()
-    
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
     console.log('📨 Summarize request body:', body)
     const { emailId } = body
@@ -107,7 +99,7 @@ Content: ${email.body_preview}`,
     console.error('Summarization error:', error)
     return NextResponse.json({ error: 'Failed to generate summary' }, { status: 500 })
   }
-}
+})
 
 
 

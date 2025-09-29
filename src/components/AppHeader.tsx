@@ -70,6 +70,16 @@ export function AppHeader({
                   Senders
                 </Link>
                 <Link 
+                  href="/intelligence" 
+                  className={`text-sm font-medium transition-colors ${
+                    isActive('/intelligence')
+                      ? 'text-primary hover:text-primary/80'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Intelligence
+                </Link>
+                <Link 
                   href="/insights" 
                   className={`text-sm font-medium transition-colors ${
                     isActive('/insights')

@@ -1,20 +1,12 @@
-import { createClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
 import type { GmailMessage } from '@/types'
-import { EmailContentParser } from '@/lib/email-parser'
+import { EmailService } from '@/lib/email-service'
 import { getSyncProgress, setSyncProgress, isSyncRunning } from '@/lib/sync-progress'
+import { withAuthHandler } from '@/lib/auth-middleware'
 
-export async function POST() {
+export const POST = withAuthHandler(async ({ user, supabase }) => {
   try {
-    const supabase = await createClient()
-    
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Check if sync is already running for this user
     if (isSyncRunning(user.id)) {
       const currentProgress = getSyncProgress(user.id)
@@ -50,7 +42,7 @@ export async function POST() {
     console.error('Full sync API error:', error)
     return NextResponse.json({ error: 'Failed to start full sync' }, { status: 500 })
   }
-}
+})
 
 async function startFullSync(gmail: any, supabase: any, userId: string) {
   try {
@@ -81,6 +73,36 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
     
     // Update progress with total count
     setSyncProgress(userId, { current: 0, total: totalMessages, isRunning: true })
+
+    // Collect all Gmail IDs for cleanup
+    console.log('🔍 Collecting all Gmail message IDs for cleanup...')
+    const allGmailIds: string[] = []
+    pageToken = undefined
+
+    do {
+      const idResponse = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 100,
+        q: 'in:inbox',
+        pageToken
+      })
+
+      if (idResponse.data.messages) {
+        allGmailIds.push(...idResponse.data.messages.map((msg: any) => msg.id))
+      }
+      pageToken = idResponse.data.nextPageToken
+    } while (pageToken)
+
+    console.log(`📋 Collected ${allGmailIds.length} Gmail IDs`)
+
+    // Clean up stale emails before processing
+    console.log('🗑️ Cleaning up stale emails...')
+    const cleanupResult = await EmailService.cleanupStaleEmails(supabase, allGmailIds, userId)
+    if (cleanupResult.success) {
+      console.log(`✅ Cleanup complete: removed ${cleanupResult.deletedCount} stale emails`)
+    } else {
+      console.error('❌ Cleanup failed:', cleanupResult.error)
+    }
 
     // Now process all emails in batches
     let processedCount = 0
@@ -119,91 +141,14 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
       const gmailMessages = await Promise.all(emailPromises)
       const validMessages = gmailMessages.filter(msg => msg !== null)
 
-      // Process and store emails
-      const processedEmails = validMessages.map((message) => {
-        try {
-          const headers = message.payload?.headers || []
-          const fromHeader = headers.find(h => h.name === 'From')
-          const subjectHeader = headers.find(h => h.name === 'Subject')
-          const dateHeader = headers.find(h => h.name === 'Date')
+      // Process emails using shared service
+      const processedEmails = await EmailService.processGmailMessages(validMessages, userId)
 
-          // Extract and decode email body content with robust parsing
-          let fullBody = ''
-          try {
-            // Helper function to decode email content with proper encoding handling
-            const decodeEmailContent = (data: string) => {
-              try {
-                // First decode from base64
-                let decoded = Buffer.from(data, 'base64').toString('utf-8')
-                
-                // Simple decoding for quoted-printable soft line breaks
-                decoded = decoded.replace(/=\r?\n/g, '')
-                
-                return decoded.trim()
-              } catch (error) {
-                console.warn('Failed to decode email content:', error)
-                return ''
-              }
-            }
-
-            if (message.payload?.body?.data) {
-              // Simple text email
-              const rawContent = decodeEmailContent(message.payload.body.data)
-              fullBody = EmailContentParser.processEmailContent(rawContent)
-            } else if (message.payload?.parts) {
-              // Multi-part email - prioritize text/plain over text/html
-              let plainTextContent = ''
-              let htmlContent = ''
-              
-              for (const part of message.payload.parts) {
-                if (part.mimeType === 'text/plain' && part.body?.data) {
-                  const partContent = decodeEmailContent(part.body.data)
-                  plainTextContent += partContent + '\n'
-                } else if (part.mimeType === 'text/html' && part.body?.data) {
-                  htmlContent = decodeEmailContent(part.body.data)
-                }
-              }
-              
-              // Prioritize HTML for rich content, fallback to plain text
-              if (htmlContent.trim()) {
-                fullBody = EmailContentParser.processEmailContent(htmlContent)
-              } else if (plainTextContent.trim()) {
-                fullBody = EmailContentParser.processEmailContent(plainTextContent)
-              }
-            }
-          } catch (bodyError) {
-            console.warn(`⚠️ Failed to extract body for message ${message.id}:`, bodyError)
-            fullBody = message.snippet || ''
-          }
-
-          const bodyPreview = fullBody || message.snippet || ''
-
-          return {
-            gmail_id: message.id,
-            sender: fromHeader?.value || 'Unknown Sender',
-            subject: subjectHeader?.value || 'No Subject',
-            body_preview: bodyPreview,
-            created_at: dateHeader?.value ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
-            user_id: userId,
-            read: false
-          }
-        } catch (error) {
-          console.error('❌ Failed to process email:', error)
-          return null
-        }
-      }).filter(email => email !== null)
-
-      // Store batch in database
+      // Store batch in database using shared service
       if (processedEmails.length > 0) {
-        const { error: dbError } = await supabase
-          .from('emails')
-          .upsert(processedEmails, { 
-            onConflict: 'gmail_id,user_id',
-            ignoreDuplicates: true
-          })
-
-        if (dbError) {
-          console.error('❌ Database error:', dbError)
+        const saveResult = await EmailService.saveEmailsToDatabase(supabase, processedEmails)
+        if (!saveResult.success) {
+          console.error('❌ Database error:', saveResult.error)
         } else {
           console.log(`✅ Saved batch of ${processedEmails.length} emails`)
         }

@@ -96,7 +96,7 @@ export class EmailContentParser {
     if (!text) return ''
 
     // Remove URLs for cleaner display
-    let cleaned = text.replace(/<?\b(?:https?:\/\/|www\.)[^\s<>]+>?/gi, '[link]')
+    const cleaned = text.replace(/<?\b(?:https?:\/\/|www\.)[^\s<>]+>?/gi, '[link]')
     
     // Simple paragraph splitting - keep existing line breaks if they exist
     const paragraphs = cleaned
