@@ -21,16 +21,37 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
       }, { status: 400 })
     }
 
+    // Get the most recent email timestamp from database
+    const { data: latestEmail } = await supabase
+      .from('emails')
+      .select('received_at')
+      .eq('user_id', user.id)
+      .order('received_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    // Build Gmail query - only fetch emails newer than last sync
+    let gmailQuery = 'in:inbox'
+    if (latestEmail?.received_at) {
+      // Convert to Gmail's date format (YYYY/MM/DD)
+      const lastSyncDate = new Date(latestEmail.received_at)
+      const gmailDateFormat = `${lastSyncDate.getFullYear()}/${String(lastSyncDate.getMonth() + 1).padStart(2, '0')}/${String(lastSyncDate.getDate()).padStart(2, '0')}`
+      gmailQuery = `in:inbox after:${gmailDateFormat}`
+      console.log(`🔄 Refreshing: fetching emails after ${gmailDateFormat}`)
+    } else {
+      console.log('📥 First sync: fetching recent emails')
+    }
+
     // Initialize Gmail API
     const auth = new google.auth.OAuth2()
     auth.setCredentials({ access_token: session.provider_token })
     const gmail = google.gmail({ version: 'v1', auth })
 
-    // Fetch emails from Gmail inbox (all categories)
+    // Fetch emails from Gmail inbox
     const messagesResponse = await gmail.users.messages.list({
       userId: 'me',
-      maxResults: 20,
-      q: 'in:inbox', // Gets all inbox emails regardless of tab
+      maxResults: 100, // Increased to catch more new emails on refresh
+      q: gmailQuery,
     })
 
     console.log('Gmail API response:', {
@@ -38,8 +59,11 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
       hasMessages: !!messagesResponse.data.messages
     })
 
-    if (!messagesResponse.data.messages) {
-      return NextResponse.json({ emails: [], debug: 'No messages found in Gmail' })
+    if (!messagesResponse.data.messages || messagesResponse.data.messages.length === 0) {
+      return NextResponse.json({ 
+        emails: [], 
+        message: latestEmail ? 'No new emails since last sync' : 'No emails found in Gmail'
+      })
     }
 
     console.log('📧 Starting to fetch full details for', messagesResponse.data.messages.length, 'messages')
@@ -84,7 +108,12 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
     console.log(`✅ Successfully saved ${saveResult.data?.length || 0} emails to database`)
     console.log('📤 Final response:', { emailCount: saveResult.data?.length || 0 })
 
-    return NextResponse.json({ emails: saveResult.data || [] })
+    return NextResponse.json({ 
+      emails: saveResult.data || [],
+      message: latestEmail 
+        ? `Synced ${saveResult.data?.length || 0} new emails` 
+        : `Initial sync: ${saveResult.data?.length || 0} emails loaded`
+    })
 
   } catch (error) {
     console.error('Gmail API error:', error)

@@ -61,23 +61,15 @@ export class EmailContentParser {
   static extractCoreMessage(text: string): string {
     if (!text) return ''
 
-    // Split at common reply markers and take only the first part
-    const replyMarkers = [
-      /On .+? wrote:/i,
-      /From:.+?Sent:/i,
-      /-----Original Message-----/i,
-      /----- Forwarded Message -----/i,
-      /\d{1,2}\/\d{1,2}\/\d{4}.+?wrote:/i,
-      /________________________________/i // Outlook separator
-    ]
+    // Simple, reliable approach: Split at "From:" line which marks reply chain start
+    // This works consistently across Gmail, Outlook, Apple Mail, etc.
+    const fromLinePattern = /^\s*From:\s/m
+    const match = text.search(fromLinePattern)
     
     let coreMessage = text
-    for (const marker of replyMarkers) {
-      const match = coreMessage.search(marker)
-      if (match !== -1) {
-        coreMessage = coreMessage.substring(0, match)
-        break
-      }
+    if (match !== -1) {
+      // Found reply chain marker - keep only content before it
+      coreMessage = text.substring(0, match)
     }
     
     // Remove email signatures (common patterns)
