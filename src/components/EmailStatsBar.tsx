@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Mail, RefreshCw, Clock, CheckCircle } from 'lucide-react'
+import { Mail, RefreshCw, Clock, CheckCircle, AlertTriangle, Wifi, WifiOff } from 'lucide-react'
 
 interface EmailStats {
   totalEmails: number
@@ -16,6 +16,13 @@ interface SyncProgress {
   isRunning: boolean
 }
 
+interface ConnectionStatus {
+  connected: boolean
+  error?: string
+  lastChecked: string
+  needsReauth?: boolean
+}
+
 interface EmailStatsBarProps {
   onFullSync: () => void
 }
@@ -23,8 +30,10 @@ interface EmailStatsBarProps {
 export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   const [stats, setStats] = useState<EmailStats>({ totalEmails: 0, lastSyncTime: null })
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ connected: true, lastChecked: new Date().toISOString() })
   const [loading, setLoading] = useState(true)
   const [pollCount, setPollCount] = useState(0)
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false)
 
   const fetchStats = async () => {
     try {
@@ -40,6 +49,29 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
       console.error('Failed to fetch email stats:', error)
     }
     setLoading(false)
+  }
+
+  const fetchConnectionStatus = async () => {
+    try {
+      const response = await fetch('/api/gmail/connection-status')
+      const data = await response.json()
+      
+      setConnectionStatus(data)
+      
+      // Show reconnect banner if disconnected and needs reauth
+      if (!data.connected && data.needsReauth) {
+        setShowReconnectBanner(true)
+      } else if (data.connected) {
+        setShowReconnectBanner(false)
+      }
+    } catch (error) {
+      console.error('Failed to fetch connection status:', error)
+      setConnectionStatus({
+        connected: false,
+        error: 'Failed to check connection',
+        lastChecked: new Date().toISOString()
+      })
+    }
   }
 
   const fetchSyncProgress = async () => {
@@ -105,8 +137,23 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
     return `${diffDays}d ago`
   }
 
+  const handleReconnect = () => {
+    // Redirect to Google OAuth
+    window.location.href = '/api/auth/signin'
+  }
+
+  const dismissReconnectBanner = () => {
+    setShowReconnectBanner(false)
+  }
+
   useEffect(() => {
     fetchStats()
+    fetchConnectionStatus()
+    
+    // Set up 10-minute polling for connection status
+    const connectionInterval = setInterval(fetchConnectionStatus, 10 * 60 * 1000) // 10 minutes
+    
+    return () => clearInterval(connectionInterval)
   }, [])
 
   if (loading) {
@@ -125,10 +172,57 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   }
 
   return (
-    <div className="bg-primary/5 border-b border-primary/20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-12">
+    <>
+      {showReconnectBanner && (
+        <div className="bg-yellow-50 border-b border-yellow-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-12">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                <span className="text-sm text-yellow-800">
+                  Gmail connection lost. Your emails may be out of sync.
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleReconnect}
+                  className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                >
+                  Reconnect Gmail
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={dismissReconnectBanner}
+                  className="text-yellow-600 hover:bg-yellow-100"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="bg-primary/5 border-b border-primary/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-12">
           <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              {connectionStatus.connected ? (
+                <Wifi className="w-4 h-4 text-green-600" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-600" />
+              )}
+              <span className={`text-sm font-medium ${
+                connectionStatus.connected ? 'text-green-700' : 'text-red-700'
+              }`}>
+                Gmail {connectionStatus.connected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+            
             <div className="flex items-center space-x-2">
               <Mail className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium text-primary">
@@ -176,8 +270,9 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
               </Button>
             )}
           </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

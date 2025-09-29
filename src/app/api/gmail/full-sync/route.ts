@@ -127,8 +127,56 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
           const subjectHeader = headers.find(h => h.name === 'Subject')
           const dateHeader = headers.find(h => h.name === 'Date')
 
-          // Parse email content
-          const bodyPreview = EmailContentParser.processEmailContent(message.snippet || '')
+          // Extract and decode email body content with robust parsing
+          let fullBody = ''
+          try {
+            // Helper function to decode email content with proper encoding handling
+            const decodeEmailContent = (data: string) => {
+              try {
+                // First decode from base64
+                let decoded = Buffer.from(data, 'base64').toString('utf-8')
+                
+                // Simple decoding for quoted-printable soft line breaks
+                decoded = decoded.replace(/=\r?\n/g, '')
+                
+                return decoded.trim()
+              } catch (error) {
+                console.warn('Failed to decode email content:', error)
+                return ''
+              }
+            }
+
+            if (message.payload?.body?.data) {
+              // Simple text email
+              const rawContent = decodeEmailContent(message.payload.body.data)
+              fullBody = EmailContentParser.processEmailContent(rawContent)
+            } else if (message.payload?.parts) {
+              // Multi-part email - prioritize text/plain over text/html
+              let plainTextContent = ''
+              let htmlContent = ''
+              
+              for (const part of message.payload.parts) {
+                if (part.mimeType === 'text/plain' && part.body?.data) {
+                  const partContent = decodeEmailContent(part.body.data)
+                  plainTextContent += partContent + '\n'
+                } else if (part.mimeType === 'text/html' && part.body?.data) {
+                  htmlContent = decodeEmailContent(part.body.data)
+                }
+              }
+              
+              // Prioritize HTML for rich content, fallback to plain text
+              if (htmlContent.trim()) {
+                fullBody = EmailContentParser.processEmailContent(htmlContent)
+              } else if (plainTextContent.trim()) {
+                fullBody = EmailContentParser.processEmailContent(plainTextContent)
+              }
+            }
+          } catch (bodyError) {
+            console.warn(`⚠️ Failed to extract body for message ${message.id}:`, bodyError)
+            fullBody = message.snippet || ''
+          }
+
+          const bodyPreview = fullBody || message.snippet || ''
 
           return {
             gmail_id: message.id,
