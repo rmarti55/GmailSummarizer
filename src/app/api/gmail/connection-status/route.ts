@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import {
-  getGoogleRefreshToken,
+  hasVaultRefreshToken,
   isGmailScopeError,
+  isGoogleAuthError,
   resolveGoogleAccessToken,
+  verifyGmailAccess,
 } from '@/lib/google-auth'
 
 export async function GET() {
@@ -16,14 +18,11 @@ export async function GET() {
     }
 
     const { data: { session } } = await supabase.auth.getSession()
-    const hasRefreshToken = !!getGoogleRefreshToken(session, user)
+    const hasRefreshToken = await hasVaultRefreshToken(user.id)
 
     console.info('[auth/gmail] connection-status', {
       hasUser: !!user,
       hasSession: !!session,
-      hasProviderToken: !!session?.provider_token,
-      hasMetadataAccessToken: !!user.user_metadata?.google_access_token,
-      hasMetadataRefreshToken: !!user.user_metadata?.google_refresh_token,
       hasRefreshToken,
     })
 
@@ -46,7 +45,32 @@ export async function GET() {
         })
       }
 
-      // resolveGoogleAccessToken already verified via getProfile — no second check.
+      try {
+        // Explicit connectivity check (not done on every sync/delete resolve).
+        await verifyGmailAccess(result.accessToken)
+      } catch (verifyError) {
+        if (isGmailScopeError(verifyError)) throw verifyError
+
+        // expires_at said fresh but Google rejected — force refresh once, then re-verify.
+        if (isGoogleAuthError(verifyError) && hasRefreshToken) {
+          const refreshed = await resolveGoogleAccessToken(supabase, session, user, {
+            forceRefresh: true,
+          })
+          if (!refreshed.ok) {
+            return NextResponse.json({
+              connected: false,
+              error: refreshed.error,
+              code: refreshed.code,
+              lastChecked: new Date().toISOString(),
+              needsReauth: refreshed.needsReauth,
+            })
+          }
+          await verifyGmailAccess(refreshed.accessToken)
+        } else {
+          throw verifyError
+        }
+      }
+
       return NextResponse.json({
         connected: true,
         lastChecked: new Date().toISOString(),
@@ -61,7 +85,14 @@ export async function GET() {
           needsReauth: true,
         })
       }
-      throw gmailError
+
+      console.error('[auth/gmail] connection-status verify failed:', gmailError)
+      return NextResponse.json({
+        connected: false,
+        error: 'Gmail connection check failed',
+        lastChecked: new Date().toISOString(),
+        needsReauth: isGoogleAuthError(gmailError),
+      })
     }
   } catch (error) {
     console.error('Connection status API error:', error)

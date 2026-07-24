@@ -246,11 +246,15 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<{
 async function tryRefresh(userId: string, refreshToken: string): Promise<GoogleTokenResult> {
   try {
     const refreshed = await refreshGoogleAccessToken(refreshToken)
-    await persistGoogleTokens(userId, refreshed.accessToken, {
+    const saved = await persistGoogleTokens(userId, refreshed.accessToken, {
       refreshToken: refreshed.refreshToken ?? refreshToken,
       expiresAt: refreshed.expiresAt,
     })
-    console.info('[auth/gmail] refreshed Google access token')
+    if (!saved) {
+      console.error('[auth/gmail] Refreshed token but failed to persist to vault')
+    } else {
+      console.info('[auth/gmail] refreshed Google access token')
+    }
     return { ok: true, accessToken: refreshed.accessToken }
   } catch (error) {
     console.error('[auth/gmail] Google token refresh failed:', error)
@@ -287,7 +291,8 @@ export async function verifyGmailAccess(accessToken: string): Promise<void> {
 export async function resolveGoogleAccessToken(
   supabase: SupabaseClient,
   session: Session | null,
-  user: User
+  user: User,
+  options?: { forceRefresh?: boolean }
 ): Promise<GoogleTokenResult> {
   let credentials = await getVaultCredentials(user.id)
 
@@ -312,7 +317,7 @@ export async function resolveGoogleAccessToken(
       }
     }
 
-    if (sessionAccess) {
+    if (sessionAccess && !options?.forceRefresh) {
       await persistGoogleTokens(user.id, sessionAccess, {
         refreshToken: sessionRefresh,
         expiresAt: defaultExpiresAt(),
@@ -320,22 +325,33 @@ export async function resolveGoogleAccessToken(
       return { ok: true, accessToken: sessionAccess }
     }
 
-    return tryRefresh(user.id, sessionRefresh!)
+    if (!sessionRefresh) {
+      return {
+        ok: false,
+        code: 'missing_refresh_token',
+        error: 'Google authentication expired — reconnect Gmail',
+        needsReauth: true,
+      }
+    }
+
+    return tryRefresh(user.id, sessionRefresh)
   }
+
+  const isFresh =
+    !!credentials.access_token &&
+    credentials.access_token !== 'pending_refresh' &&
+    isAccessTokenFresh(credentials.expires_at)
 
   console.info('[auth/gmail] resolve', {
     userId: user.id,
     hasAccessToken: !!credentials.access_token,
     hasRefreshToken: !!credentials.refresh_token,
     expiresAt: credentials.expires_at,
-    isFresh: isAccessTokenFresh(credentials.expires_at),
+    isFresh,
+    forceRefresh: !!options?.forceRefresh,
   })
 
-  if (
-    credentials.access_token &&
-    credentials.access_token !== 'pending_refresh' &&
-    isAccessTokenFresh(credentials.expires_at)
-  ) {
+  if (isFresh && !options?.forceRefresh) {
     return { ok: true, accessToken: credentials.access_token }
   }
 

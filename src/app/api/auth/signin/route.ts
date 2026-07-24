@@ -1,20 +1,22 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { hasVaultRefreshToken, safeAuthRedirectPath } from '@/lib/google-auth'
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { origin } = new URL(request.url)
 
-    // Get the redirect URL (where to go after successful auth)
-    const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/dashboard'
+    const redirectTo = safeAuthRedirectPath(
+      request.nextUrl.searchParams.get('redirectTo')
+    )
     const forceConsent = request.nextUrl.searchParams.get('consent') === 'true'
 
     // Offline refresh tokens are unreliable without consent. Force consent when
-    // explicitly requested, on first login, or when no refresh token is stored.
+    // explicitly requested, on first login, or when no refresh token is in the vault.
     const { data: { user } } = await supabase.auth.getUser()
-    const hasStoredRefreshToken = !!user?.user_metadata?.google_refresh_token
+    const hasStoredRefreshToken = user ? await hasVaultRefreshToken(user.id) : false
     const useConsent = forceConsent || !user || !hasStoredRefreshToken
 
     const { data, error } = await supabase.auth.signInWithOAuth({

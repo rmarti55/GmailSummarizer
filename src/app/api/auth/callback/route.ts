@@ -1,12 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { isGmailScopeError, verifyGmailAccess } from '@/lib/google-auth'
+import {
+  clearGoogleTokensFromMetadata,
+  isGmailScopeError,
+  persistGoogleTokens,
+  safeAuthRedirectPath,
+  verifyGmailAccess,
+} from '@/lib/google-auth'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = safeAuthRedirectPath(searchParams.get('next'))
 
   if (code) {
     const supabase = await createClient()
@@ -20,7 +26,7 @@ export async function GET(request: NextRequest) {
       error: error?.message,
     })
 
-    if (!error && data.session) {
+    if (!error && data.session && data.user) {
       if (data.session.provider_token) {
         try {
           await verifyGmailAccess(data.session.provider_token)
@@ -32,25 +38,22 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(`${origin}/login?error=gmail_connection_failed`)
         }
 
-        // Never overwrite a stored refresh token with null — Google often omits it on re-login.
-        const tokenData: Record<string, string> = {
-          google_access_token: data.session.provider_token,
-        }
-        if (data.session.provider_refresh_token) {
-          tokenData.google_refresh_token = data.session.provider_refresh_token
-        }
-
-        const { error: updateError } = await supabase.auth.updateUser({
-          data: tokenData,
+        const saved = await persistGoogleTokens(data.user.id, data.session.provider_token, {
+          refreshToken: data.session.provider_refresh_token,
+          // Provider token lifetime is typically ~1h; we don't get expiry from Supabase.
+          expiresAt: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
+          scopes: 'openid email profile https://mail.google.com/',
         })
 
-        if (updateError) {
-          console.error('[auth/callback] Failed to persist Google tokens:', updateError.message)
+        if (!saved) {
+          console.error('[auth/callback] Failed to persist Google tokens to vault')
         } else {
-          console.info('[auth/callback] Google tokens saved to user metadata', {
+          console.info('[auth/callback] Google tokens saved to gmail_credentials', {
             savedRefreshToken: !!data.session.provider_refresh_token,
           })
         }
+
+        await clearGoogleTokensFromMetadata(supabase, data.user)
       } else {
         console.warn('[auth/callback] No provider_token in session after OAuth exchange')
         return NextResponse.redirect(`${origin}/login?error=gmail_scope_missing`)
