@@ -1,9 +1,14 @@
-import { google } from 'googleapis'
+import { google, type gmail_v1 } from 'googleapis'
 import { NextResponse } from 'next/server'
 import type { GmailMessage } from '@/types'
 import { EmailService } from '@/lib/email-service'
 import { getSyncProgress, setSyncProgress, isSyncRunning } from '@/lib/sync-progress'
 import { withAuthHandler } from '@/lib/auth-middleware'
+import { createClient } from '@/lib/supabase/server'
+
+type GmailListMessagesResponse = {
+  data: gmail_v1.Schema$ListMessagesResponse
+}
 
 export const POST = withAuthHandler(async ({ user, supabase }) => {
   try {
@@ -44,7 +49,11 @@ export const POST = withAuthHandler(async ({ user, supabase }) => {
   }
 })
 
-async function startFullSync(gmail: any, supabase: any, userId: string) {
+async function startFullSync(
+  gmail: gmail_v1.Gmail,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+) {
   try {
     // Initialize progress tracking
     setSyncProgress(userId, { current: 0, total: 0, isRunning: true })
@@ -52,11 +61,11 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
     // First, get total count of emails to process
     console.log('🔍 Getting total email count...')
     let totalMessages = 0
-    let pageToken: string | undefined = undefined
+    let pageToken: string | null | undefined = undefined
 
     // Count all messages first
     do {
-      const countResponse = await gmail.users.messages.list({
+      const countResponse: GmailListMessagesResponse = await gmail.users.messages.list({
         userId: 'me',
         maxResults: 100,
         q: 'in:inbox',
@@ -80,7 +89,7 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
     pageToken = undefined
 
     do {
-      const idResponse = await gmail.users.messages.list({
+      const idResponse: GmailListMessagesResponse = await gmail.users.messages.list({
         userId: 'me',
         maxResults: 100,
         q: 'in:inbox',
@@ -110,7 +119,7 @@ async function startFullSync(gmail: any, supabase: any, userId: string) {
 
     do {
       // Get batch of message IDs
-      const messagesResponse = await gmail.users.messages.list({
+      const messagesResponse: GmailListMessagesResponse = await gmail.users.messages.list({
         userId: 'me',
         maxResults: 100,
         q: 'in:inbox',

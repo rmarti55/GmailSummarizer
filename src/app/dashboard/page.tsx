@@ -226,7 +226,7 @@ export default function Dashboard() {
                 <p className="text-muted-foreground mb-4">
                   Connect your Gmail account to see your emails here
                 </p>
-                <Button onClick={fetchEmails}>
+                <Button onClick={() => fetchEmails()}>
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Try Again
                 </Button>

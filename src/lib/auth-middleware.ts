@@ -4,13 +4,13 @@ import type { User } from '@supabase/supabase-js'
 
 export interface AuthenticatedRequest {
   user: User
-  supabase: ReturnType<typeof createClient>
+  supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 export interface AuthMiddlewareResult {
   success: boolean
   user?: User
-  supabase?: ReturnType<typeof createClient>
+  supabase?: Awaited<ReturnType<typeof createClient>>
   response?: NextResponse
 }
 
@@ -50,10 +50,10 @@ export async function withAuth(): Promise<AuthMiddlewareResult> {
  * Higher-order function that wraps API route handlers with authentication
  * Usage: export const GET = withAuthHandler(async ({ user, supabase }) => { ... })
  */
-export function withAuthHandler(
-  handler: (context: AuthenticatedRequest, ...args: unknown[]) => Promise<NextResponse> | NextResponse
+export function withAuthHandler<A extends unknown[]>(
+  handler: (context: AuthenticatedRequest, ...args: A) => Promise<NextResponse> | NextResponse
 ) {
-  return async (...args: unknown[]): Promise<NextResponse> => {
+  return async (...args: A): Promise<NextResponse> => {
     const authResult = await withAuth()
     
     if (!authResult.success) {

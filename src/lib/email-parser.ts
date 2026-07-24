@@ -14,10 +14,7 @@ export class EmailContentParser {
     try {
       // Load HTML with cheerio - handles malformed tags gracefully
       const $ = cheerio.load(htmlContent, {
-        // Use htmlparser2 for better malformed HTML handling
         xml: { xmlMode: false },
-        // Decode HTML entities properly
-        decodeEntities: true
       })
 
       // Remove script, style, and noscript blocks entirely

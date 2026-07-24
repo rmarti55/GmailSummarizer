@@ -45,6 +45,7 @@ export async function GET() {
     
     const peakHour = Object.entries(hourCounts)
       .sort(([,a], [,b]) => b - a)[0]
+    const peakHourValue = peakHour ? Number(peakHour[0]) : null
     
     // Day of week patterns
     const dayCounts = emails.reduce((acc, email) => {
@@ -81,7 +82,9 @@ export async function GET() {
     }, {} as Record<string, number>)
 
     const analytics = {
-      peakHour: peakHour ? `${peakHour[0] > 12 ? peakHour[0] - 12 : peakHour[0] === 0 ? 12 : peakHour[0]}:00 ${peakHour[0] >= 12 ? 'PM' : 'AM'}` : null,
+      peakHour: peakHourValue !== null
+        ? `${peakHourValue > 12 ? peakHourValue - 12 : peakHourValue === 0 ? 12 : peakHourValue}:00 ${peakHourValue >= 12 ? 'PM' : 'AM'}`
+        : null,
       peakDay: peakDay ? peakDay[0] : null,
       totalAnalyzed: emails.length,
       avgPerDay: Math.round(emails.length / 30), // Rough 30-day average
