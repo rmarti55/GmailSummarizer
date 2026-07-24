@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { ChevronRight, ChevronDown, Mail, ExternalLink, Trash2 } from 'lucide-react'
-import { AdaptiveSummary } from '@/components/AdaptiveSummary'
+import { EmailSummaryBlock } from '@/components/EmailSummaryBlock'
 import { Email } from '@/types'
 
 interface SenderStats {
@@ -36,6 +36,7 @@ interface ExpandableSenderCardProps {
   onPageChange: (sender: string, page: number) => void
   onDeleteEmail: (emailId: string, senderName: string) => void
   deletingId: string | null
+  isSummarizing: (emailId: string) => boolean
 }
 
 export function ExpandableSenderCard({
@@ -49,6 +50,7 @@ export function ExpandableSenderCard({
   onPageChange,
   onDeleteEmail,
   deletingId,
+  isSummarizing,
 }: ExpandableSenderCardProps) {
   
   // Format email text into readable paragraphs (reused from Dashboard)
@@ -150,13 +152,11 @@ export function ExpandableSenderCard({
                           
                           {/* AI Summary */}
                           <div>
-                            {email.summary ? (
-                              <AdaptiveSummary email={email} />
-                            ) : (
-                              <div className="bg-muted rounded-lg p-3 border">
-                                <span className="text-sm text-muted-foreground">No summary</span>
-                              </div>
-                            )}
+                            <EmailSummaryBlock
+                              email={email}
+                              isSummarizing={isSummarizing(email.id)}
+                              compact
+                            />
                           </div>
                           
                           {/* Original Email Content - Collapsible */}

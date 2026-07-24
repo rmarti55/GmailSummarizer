@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect, useCallback } from 'react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
 import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { deleteEmailFromGmail } from '@/lib/client-gmail-delete'
+import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Mail, BarChart3 } from 'lucide-react'
 import { SenderStats, PaginationInfo, Email } from '@/types'
 
@@ -19,6 +20,20 @@ export default function SendersPage() {
   const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
+    setSenderEmails((prev) => {
+      const next: Record<string, Email[]> = {}
+      for (const [sender, emails] of Object.entries(prev)) {
+        next[sender] = emails.map((email) =>
+          email.id === emailId ? { ...email, summary } : email
+        )
+      }
+      return next
+    })
+  }, [])
+
+  const { enqueueMissingSummaries, isSummarizing } = useSummarizeQueue(handleSummaryComplete)
 
   const handleRefresh = async () => {
     await syncNewEmailsFromGmail()
@@ -86,8 +101,10 @@ export default function SendersPage() {
       const response = await fetch(`/api/senders/${encodeURIComponent(sender)}/emails?page=${page}&limit=10`)
       if (response.ok) {
         const data = await response.json()
-        setSenderEmails(prev => ({ ...prev, [sender]: data.emails || [] }))
+        const emails = data.emails || []
+        setSenderEmails(prev => ({ ...prev, [sender]: emails }))
         setSenderPagination(prev => ({ ...prev, [sender]: data.pagination }))
+        enqueueMissingSummaries(emails)
       } else {
         console.error('Failed to fetch sender emails')
       }
@@ -228,6 +245,7 @@ export default function SendersPage() {
                 onPageChange={handlePageChange}
                 onDeleteEmail={handleDeleteEmail}
                 deletingId={deletingId}
+                isSummarizing={isSummarizing}
               />
             ))}
           </div>

@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Mail, RefreshCw, LogOut, ExternalLink, Trash2 } from 'lucide-react'
-import { AdaptiveSummary } from '@/components/AdaptiveSummary'
+import { Mail, RefreshCw, ExternalLink, Trash2 } from 'lucide-react'
+import { EmailSummaryBlock } from '@/components/EmailSummaryBlock'
 import { AppHeader } from '@/components/AppHeader'
 import { PaginationControls } from '@/components/PaginationControls'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { deleteEmailFromGmail } from '@/lib/client-gmail-delete'
+import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Email } from '@/types'
 
 export default function Dashboard() {
@@ -21,6 +22,14 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const EMAILS_PER_PAGE = 20
+
+  const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
+    setEmails((prev) =>
+      prev.map((email) => (email.id === emailId ? { ...email, summary } : email))
+    )
+  }, [])
+
+  const { enqueueMissingSummaries, isSummarizing } = useSummarizeQueue(handleSummaryComplete)
 
   // Format email text into readable paragraphs
   const formatEmailText = (text: string): string => {
@@ -60,6 +69,7 @@ export default function Dashboard() {
         const newEmails = data.emails || []
         
         setEmails(newEmails)
+        enqueueMissingSummaries(newEmails)
         
         // Make sure total count is set correctly - fix stale count bug
         if (totalEmailCount === 0 || newEmails.length > totalEmailCount) {
@@ -259,13 +269,10 @@ export default function Dashboard() {
                 <CardContent className="pt-0">
                   {/* AI Summary First - Main Content */}
                   <div className="mb-4">
-                    {email.summary ? (
-                      <AdaptiveSummary email={email} />
-                    ) : (
-                      <div className="bg-muted rounded-lg p-4 border">
-                        <span className="text-sm text-muted-foreground">No summary</span>
-                      </div>
-                    )}
+                    <EmailSummaryBlock
+                      email={email}
+                      isSummarizing={isSummarizing(email.id)}
+                    />
                   </div>
                   
                   {/* Original Email Content - Secondary/Collapsible */}
