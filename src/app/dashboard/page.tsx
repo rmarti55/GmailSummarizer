@@ -16,7 +16,6 @@ export default function Dashboard() {
   const [emails, setEmails] = useState<Email[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [summarizing, setSummarizing] = useState<string | null>(null)
   const [totalEmailCount, setTotalEmailCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const EMAILS_PER_PAGE = 20
@@ -65,12 +64,6 @@ export default function Dashboard() {
           fetchEmailCount()
         }
         
-        // Auto-summarize emails that don't have summaries
-        newEmails.forEach((email: Email) => {
-          if (!email.summary) {
-            summarizeEmail(email.id)
-          }
-        })
       }
     } catch (error) {
       console.error('Failed to fetch emails:', error)
@@ -99,27 +92,6 @@ export default function Dashboard() {
   const handleFullSync = (silent = false) => {
     fetchEmailCount()
     fetchEmails(currentPage, silent)
-  }
-
-  const summarizeEmail = async (emailId: string) => {
-    setSummarizing(emailId)
-    try {
-      const response = await fetch('/api/summarize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailId })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setEmails(prev => prev.map(email => 
-          email.id === emailId ? { ...email, summary: data.summary } : email
-        ))
-      }
-    } catch (error) {
-      console.error('Failed to summarize:', error)
-    }
-    setSummarizing(null)
   }
 
   const handleLogout = async () => {
@@ -270,10 +242,7 @@ export default function Dashboard() {
                       <AdaptiveSummary email={email} />
                     ) : (
                       <div className="bg-muted rounded-lg p-4 border">
-                        <div className="flex items-center space-x-2">
-                          <RefreshCw className="w-4 h-4 animate-spin text-primary" />
-                          <span className="text-sm text-muted-foreground">Generating summary...</span>
-                        </div>
+                        <span className="text-sm text-muted-foreground">No summary</span>
                       </div>
                     )}
                   </div>

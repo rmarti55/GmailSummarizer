@@ -42,7 +42,7 @@ export function AppHeader({
                   Gmail Summarizer
                 </h1>
                 <Badge variant="secondary" className="text-xs">
-                  GPT-OSS-120B
+                  Gemini 2.5 Flash Lite
                 </Badge>
               </div>
             </div>

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { ChevronRight, ChevronDown, Mail, ExternalLink, RefreshCw } from 'lucide-react'
+import { ChevronRight, ChevronDown, Mail, ExternalLink } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { Email } from '@/types'
 
@@ -150,10 +150,7 @@ export function ExpandableSenderCard({
                               <AdaptiveSummary email={email} />
                             ) : (
                               <div className="bg-muted rounded-lg p-3 border">
-                                <div className="flex items-center space-x-2">
-                                  <RefreshCw className="w-4 h-4 animate-spin text-primary" />
-                                  <span className="text-sm text-muted-foreground">Generating summary...</span>
-                                </div>
+                                <span className="text-sm text-muted-foreground">No summary</span>
                               </div>
                             )}
                           </div>

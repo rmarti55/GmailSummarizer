@@ -14,8 +14,8 @@ Gmail Summarizer is a sophisticated AI-powered email management system that comb
          │                        │                       │
          ▼                        ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Groq AI API   │    │   Row Level      │    │   OAuth 2.0     │
-│ (GPT-OSS-120B)  │    │   Security       │    │  Authentication │
+│  OpenRouter AI  │    │   Row Level      │    │   OAuth 2.0     │
+│ (Gemini 2.5 FL) │    │   Security       │    │  Authentication │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -56,13 +56,13 @@ Account **Refresh** triggers incremental sync; **Get All My Emails** runs full s
 
 #### Summarize API (`src/app/api/summarize/route.ts`)
 
-On-demand summarization via Groq (`openai/gpt-oss-120b`):
+On-demand summarization via OpenRouter (`google/gemini-2.5-flash-lite` by default):
 
 ```
-Load email from DB → Groq one-sentence summary → Save to emails.summary
+Load email from DB → OpenRouter one-sentence summary → Save to emails.summary
 ```
 
-Dashboard auto-summarizes unsSummarized emails on load. `AdaptiveSummary` is a presentational formatter for stored summaries.
+Dashboard does not auto-summarize on load. `AdaptiveSummary` formats stored summaries. Set `DISABLE_SUMMARIZATION=true` to hard-pause. Override model with `SUMMARIZE_MODEL`.
 
 Intelligence/Insights use keyword heuristics over stored email data for analytics views.
 
@@ -204,7 +204,7 @@ if (error || !user) {
 
 ### Performance Optimizations
 - **Database Indexing**: Optimized for user-scoped queries
-- **API Rate Limiting**: Respects Gmail and Groq API limits
+- **API Rate Limiting**: Respects Gmail and OpenRouter API limits
 - **Caching Strategy**: Email deduplication prevents reprocessing
 - **Batch Processing**: Parallel email fetching with Promise.all
 

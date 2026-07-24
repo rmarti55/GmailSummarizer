@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,15 +10,11 @@ import { Email } from '@/types'
 interface EmailListContainerProps {
   emails: Email[]
   loading: boolean
-  onSummarizeEmail: (emailId: string) => void
-  isProcessing: boolean
 }
 
 export function EmailListContainer({ 
   emails, 
   loading, 
-  onSummarizeEmail,
-  isProcessing 
 }: EmailListContainerProps) {
   // Format email text into readable paragraphs
   const formatEmailText = (text: string): string => {
@@ -34,15 +30,6 @@ export function EmailListContainer({
       .map(paragraph => paragraph.join('. ') + '.')
       .join('\n\n')
   }
-
-  // Auto-summarize emails that don't have summaries
-  useEffect(() => {
-    emails.forEach((email: Email) => {
-      if (!email.summary && !isProcessing) {
-        onSummarizeEmail(email.id)
-      }
-    })
-  }, [emails, onSummarizeEmail, isProcessing])
 
   if (loading) {
     // Loading skeletons
@@ -115,10 +102,7 @@ export function EmailListContainer({
                 <AdaptiveSummary email={email} />
               ) : (
                 <div className="bg-muted rounded-lg p-4 border">
-                  <div className="flex items-center space-x-2">
-                    <RefreshCw className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm text-muted-foreground">Generating summary...</span>
-                  </div>
+                  <span className="text-sm text-muted-foreground">No summary</span>
                 </div>
               )}
             </div>
