@@ -102,14 +102,12 @@ export async function persistGoogleTokens(
     expiresAt?: string | Date | null
     scopes?: string | null
   }
-): Promise<void> {
+): Promise<boolean> {
   const admin = createAdminClient()
   const existing = await getVaultCredentials(userId)
 
-  const refreshToken =
-    options?.refreshToken !== undefined && options.refreshToken !== null
-      ? options.refreshToken
-      : existing?.refresh_token ?? null
+  // Never overwrite a stored refresh token with null — Google often omits it on re-login.
+  const refreshToken = options?.refreshToken || existing?.refresh_token || null
 
   const expiresAt =
     options?.expiresAt != null
@@ -132,8 +130,10 @@ export async function persistGoogleTokens(
 
   if (error) {
     console.error('[auth/gmail] Failed to persist gmail_credentials:', error.message)
-    throw new Error('Failed to persist Gmail credentials')
+    return false
   }
+
+  return true
 }
 
 /** Remove google_* keys from user_metadata so they leave the JWT / browser session. */
@@ -186,8 +186,11 @@ export async function migrateLegacyGoogleTokens(
     return null
   }
 
-  // Treat migrated access tokens as expired so the next resolve refreshes if possible.
-  const expiresAt = defaultExpiresAt(Date.now() - DEFAULT_ACCESS_TOKEN_TTL_MS)
+  // With a refresh token, mark access expired so the next resolve refreshes cleanly.
+  // Access-only migrate: keep a short usable window until re-consent is needed.
+  const expiresAt = refreshToken
+    ? defaultExpiresAt(Date.now() - DEFAULT_ACCESS_TOKEN_TTL_MS)
+    : defaultExpiresAt()
 
   if (accessToken) {
     await persistGoogleTokens(user.id, accessToken, {
