@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
+import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { TrendingUp, Clock, Calendar, Users, BarChart3 } from 'lucide-react'
 
 interface Analytics {
@@ -25,6 +26,7 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
 
   const handleRefresh = async () => {
+    await syncNewEmailsFromGmail()
     fetchAnalytics()
   }
 

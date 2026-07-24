@@ -37,93 +37,34 @@ Gmail API → Raw Email Data → Content Parser → Clean Text → Database
 - **Text Normalization**: Cleans whitespace, removes URLs, preserves structure
 - **Fallback Extraction**: Graceful degradation for parsing failures
 
-### 3. AI Classification System
+### 3. Gmail Sync Pipeline
 
-#### Classification Engine (`src/lib/email-classifier.ts`)
+#### Sync Service (`src/lib/gmail-sync.ts`)
 
-**5-Tier Classification System:**
+Shared ingest logic for incremental refresh and full inbox sync:
 
-1. **Critical Action** (`critical_action`)
-   - **Triggers**: Security alerts, account issues, urgent deadlines
-   - **Confidence**: 0.9 (High reliability)
-   - **Priority**: High urgency, 30s estimated read time
-   - **Action Required**: Yes
+- **Incremental sync** (`GET /api/gmail`): fetches up to 100 inbox messages newer than the latest stored email, processes via `EmailService`, upserts to Supabase
+- **Full sync** (`POST /api/gmail/full-sync`): resumable, chunked sync safe for Vercel serverless
+  - **Listing phase**: paginate Gmail inbox once, accumulate message IDs in `email_sync_jobs`
+  - **Processing phase**: fetch and upsert emails in batches of 50 with bounded concurrency
+  - **Cleanup phase**: remove stale DB rows no longer in Gmail inbox
+- **Progress** (`GET /api/gmail/sync-status`): reads durable job state from `email_sync_jobs` table (not in-memory)
 
-2. **Quick Action** (`quick_action`)
-   - **Triggers**: Meeting requests, approvals, confirmations
-   - **Confidence**: 0.8
-   - **Priority**: Medium urgency, 15s estimated read time
-   - **Action Required**: Yes
+Account **Refresh** triggers incremental sync; **Get All My Emails** runs full sync with progress polling.
 
-3. **FYI Updates** (`fyi_update`)
-   - **Triggers**: Notifications, status updates, newsletters
-   - **Confidence**: 0.8
-   - **Priority**: Low urgency, 20s estimated read time
-   - **Action Required**: No
+### 4. AI Summarization
 
-4. **Commercial** (`commercial`)
-   - **Triggers**: Marketing emails, promotions, sales content
-   - **Confidence**: 0.7
-   - **Priority**: Low urgency, 10s estimated read time
-   - **Action Required**: No
+#### Summarize API (`src/app/api/summarize/route.ts`)
 
-5. **Complex Content** (`complex_content`)
-   - **Triggers**: Long-form emails, detailed reports, comprehensive communications
-   - **Confidence**: 0.6
-   - **Priority**: Medium urgency, 60s estimated read time
-   - **Action Required**: No
+On-demand summarization via Groq (`openai/gpt-oss-120b`):
 
-#### Classification Algorithm
-```typescript
-classify(email: EmailData): EmailClassification {
-  // 1. Keyword Pattern Matching
-  // 2. Sender Domain Analysis
-  // 3. Content Length Assessment
-  // 4. Security Context Detection
-  // 5. Commercial Indicator Analysis
-}
+```
+Load email from DB → Groq one-sentence summary → Save to emails.summary
 ```
 
-### 4. Adaptive Summarization Engine
+Dashboard auto-summarizes unsSummarized emails on load. `AdaptiveSummary` is a presentational formatter for stored summaries.
 
-#### Template System (`src/lib/summary-templates.ts`)
-
-Each email type receives specialized AI treatment:
-
-**Critical Action Template:**
-- **Focus**: Immediate action items, deadlines, security implications
-- **Tone**: Urgent, direct, actionable
-- **Length**: Concise (max 150 tokens)
-- **Temperature**: 0.3 (Low variability)
-
-**Quick Action Template:**
-- **Focus**: Required response, meeting details, approval items
-- **Tone**: Professional, clear instructions
-- **Length**: Brief (max 100 tokens)
-- **Temperature**: 0.4
-
-**FYI Update Template:**
-- **Focus**: Key information, status changes, relevant updates
-- **Tone**: Informational, summary-focused
-- **Length**: Medium (max 200 tokens)
-- **Temperature**: 0.5
-
-**Commercial Template:**
-- **Focus**: Offers, discounts, product highlights
-- **Tone**: Neutral, value-focused
-- **Length**: Minimal (max 75 tokens)
-- **Temperature**: 0.4
-
-**Complex Content Template:**
-- **Focus**: Main themes, key decisions, action items
-- **Tone**: Analytical, comprehensive
-- **Length**: Extended (max 300 tokens)
-- **Temperature**: 0.6 (Higher creativity)
-
-#### AI Generation Process
-```
-Classification → Template Selection → Groq API Call → Post-processing → Formatted Summary
-```
+Intelligence/Insights use keyword heuristics over stored email data for analytics views.
 
 ## Database Schema Design
 

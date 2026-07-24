@@ -86,12 +86,13 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
         setSyncProgress(progress)
 
         if (progress.isRunning) {
-          // Refresh counts and inbox while sync runs in the background
           fetchStats()
           onFullSync?.(true)
+
+          // Process next sync chunk (Vercel-safe resumable sync)
+          await fetch('/api/gmail/full-sync', { method: 'POST' })
           setTimeout(fetchSyncProgress, 2000)
         } else {
-          // Sync finished — final refresh
           fetchStats()
           onFullSync?.(false)
         }
@@ -105,16 +106,15 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
     try {
       const response = await fetch('/api/gmail/full-sync', { method: 'POST' })
       if (response.ok) {
+        const data = await response.json()
+        if (data.progress) {
+          setSyncProgress(data.progress)
+        }
         onFullSync?.(false)
         fetchSyncProgress()
       } else {
         const data = await response.json()
-        if (response.status === 409) {
-          // Sync already running, start polling
-          fetchSyncProgress()
-        } else {
-          console.error('Failed to start full sync:', data.error)
-        }
+        console.error('Failed to start full sync:', data.error)
       }
     } catch (error) {
       console.error('Failed to start full sync:', error)
@@ -254,7 +254,7 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
               <span>Last synced {formatLastSync(stats.lastSyncTime)}</span>
             </div>
 
-            {syncProgress?.isRunning && (
+            {syncProgress?.isRunning && syncProgress.total > 0 && (
               <div className="flex items-center space-x-2">
                 <RefreshCw className="w-4 h-4 animate-spin text-primary" />
                 <span className="text-sm text-muted-foreground">
@@ -263,6 +263,12 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
                 <Badge variant="info" className="text-xs">
                   {Math.round((syncProgress.current / syncProgress.total) * 100)}%
                 </Badge>
+              </div>
+            )}
+            {syncProgress?.isRunning && syncProgress.total === 0 && (
+              <div className="flex items-center space-x-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Preparing sync...</span>
               </div>
             )}
           </div>

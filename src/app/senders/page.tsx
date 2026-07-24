@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
 import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
+import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { Mail, BarChart3 } from 'lucide-react'
 import { SenderStats, PaginationInfo, Email } from '@/types'
 
@@ -18,7 +19,7 @@ export default function SendersPage() {
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
 
   const handleRefresh = async () => {
-    // For now, just refresh sender stats
+    await syncNewEmailsFromGmail()
     fetchSenderStats()
   }
 

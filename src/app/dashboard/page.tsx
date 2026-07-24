@@ -9,6 +9,7 @@ import { Mail, RefreshCw, Sparkles, LogOut, ExternalLink } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { AppHeader } from '@/components/AppHeader'
 import { PaginationControls } from '@/components/PaginationControls'
+import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { Email } from '@/types'
 
 export default function Dashboard() {
@@ -81,6 +82,18 @@ export default function Dashboard() {
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
     fetchEmails(page)
+  }
+
+  const handleRefresh = async () => {
+    setLoading(true)
+    try {
+      await syncNewEmailsFromGmail()
+      await fetchEmailCount()
+      await fetchEmails(currentPage, true)
+    } catch (error) {
+      console.error('Failed to refresh:', error)
+    }
+    setLoading(false)
   }
 
   const handleFullSync = (silent = false) => {
@@ -158,7 +171,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        onRefresh={() => fetchEmails()}
+        onRefresh={handleRefresh}
         onClearSummaries={clearAllSummaries}
         onClearAllEmails={clearAllEmails}
         onLogout={handleLogout}
@@ -222,7 +235,7 @@ export default function Dashboard() {
                 <p className="text-muted-foreground mb-4">
                   Connect your Gmail account to see your emails here
                 </p>
-                <Button onClick={() => fetchEmails()}>
+                <Button onClick={handleRefresh}>
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Try Again
                 </Button>

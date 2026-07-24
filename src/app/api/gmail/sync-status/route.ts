@@ -1,47 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { getSyncProgress, setSyncProgress } from '@/lib/sync-progress'
+import { withAuthHandler } from '@/lib/auth-middleware'
+import { getSyncJob, toSyncProgress } from '@/lib/sync-jobs'
 
-export async function GET() {
+export const GET = withAuthHandler(async ({ user, supabase }) => {
   try {
-    const supabase = await createClient()
-    
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const progress = getSyncProgress(user.id)
-    
-    return NextResponse.json(progress)
-
+    const job = await getSyncJob(supabase, user.id)
+    return NextResponse.json(toSyncProgress(job))
   } catch (error) {
-    console.error('Sync status API error:', error)
+    console.error('[gmail] Sync status API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-}
-
-export async function POST(request: Request) {
-  try {
-    const supabase = await createClient()
-    
-    // Check if user is authenticated
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await request.json()
-    const { current, total, isRunning } = body
-    
-    // Use authenticated user ID
-    setSyncProgress(user.id, { current, total, isRunning })
-    
-    return NextResponse.json({ success: true })
-
-  } catch (error) {
-    console.error('Sync status update error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+})

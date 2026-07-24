@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, Sparkles } from 'lucide-react'
@@ -18,27 +17,11 @@ function LoginPageContent() {
   const errorCode = searchParams.get('error')
   const errorMessage = errorCode ? LOGIN_ERRORS[errorCode] : null
 
-  const handleGoogleLogin = async () => {
-    // Check if Supabase is configured
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'your_supabase_project_url') {
-      alert('Please configure Supabase environment variables first!')
-      return
-    }
-    
-    const supabase = createClient()
+  const handleGoogleLogin = () => {
     const forceConsent = errorCode === 'gmail_scope_missing'
-    
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: 'openid email profile https://mail.google.com/',
-        queryParams: {
-          access_type: 'offline',
-          prompt: forceConsent ? 'consent' : 'select_account',
-        },
-        redirectTo: `${window.location.origin}/api/auth/callback`,
-      },
-    })
+    window.location.href = forceConsent
+      ? '/api/auth/signin?consent=true'
+      : '/api/auth/signin'
   }
 
   return (

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Clock, TrendingUp, Users, Mail, ExternalLink } from 'lucide-react'
+import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -79,7 +80,8 @@ export default function Intelligence() {
     router.push('/login')
   }
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
+    await syncNewEmailsFromGmail()
     fetchIntelligence(selectedPeriod)
   }
 

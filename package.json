@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "rm -rf .next && next dev --turbopack",
+    "dev": "next dev --turbopack",
+    "dev:clean": "rm -rf .next && next dev --turbopack",
+    "dev:restart": "lsof -ti :3000 | xargs kill -9 2>/dev/null; sleep 1; find .next -mindepth 1 -delete 2>/dev/null; rm -rf .next 2>/dev/null; next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint"
