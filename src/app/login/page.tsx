@@ -9,8 +9,21 @@ import { useSearchParams } from 'next/navigation'
 const LOGIN_ERRORS: Record<string, string> = {
   gmail_scope_missing:
     'Gmail access was not granted. Revoke this app at myaccount.google.com/permissions, then sign in again and allow Gmail access.',
+  gmail_refresh_missing:
+    'Google did not grant a long-lived connection. Sign in again and approve all permissions when prompted.',
+  gmail_token_save_failed:
+    'Could not save your Gmail connection securely. Please try signing in again.',
+  gmail_connection_failed:
+    'Gmail connection could not be verified. Check that Google OAuth is configured correctly, then sign in again.',
   oauth_failed: 'Sign in failed. Please try again.',
 }
+
+const CONSENT_REQUIRED_ERRORS = new Set([
+  'gmail_scope_missing',
+  'gmail_refresh_missing',
+  'gmail_token_save_failed',
+  'gmail_connection_failed',
+])
 
 function LoginPageContent() {
   const searchParams = useSearchParams()
@@ -18,7 +31,7 @@ function LoginPageContent() {
   const errorMessage = errorCode ? LOGIN_ERRORS[errorCode] : null
 
   const handleGoogleLogin = () => {
-    const forceConsent = errorCode === 'gmail_scope_missing'
+    const forceConsent = errorCode != null && CONSENT_REQUIRED_ERRORS.has(errorCode)
     window.location.href = forceConsent
       ? '/api/auth/signin?consent=true'
       : '/api/auth/signin'

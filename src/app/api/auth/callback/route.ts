@@ -3,10 +3,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import {
   clearGoogleTokensFromMetadata,
+  hasVaultRefreshToken,
   isGmailScopeError,
   persistGoogleTokens,
   safeAuthRedirectPath,
   verifyGmailAccess,
+  verifyVaultRefreshAtLogin,
 } from '@/lib/google-auth'
 
 export async function GET(request: NextRequest) {
@@ -38,6 +40,18 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(`${origin}/login?error=gmail_connection_failed`)
         }
 
+        const hasProviderRefresh = Boolean(data.session.provider_refresh_token)
+        const hasStoredRefresh = await hasVaultRefreshToken(data.user.id)
+        const hasDurableRefresh = hasProviderRefresh || hasStoredRefresh
+
+        if (!hasDurableRefresh) {
+          console.error('[auth/callback] No durable refresh token — cannot stay connected', {
+            hasProviderRefresh,
+            hasStoredRefresh,
+          })
+          return NextResponse.redirect(`${origin}/login?error=gmail_refresh_missing`)
+        }
+
         const saved = await persistGoogleTokens(data.user.id, data.session.provider_token, {
           refreshToken: data.session.provider_refresh_token,
           // Provider token lifetime is typically ~1h; we don't get expiry from Supabase.
@@ -47,11 +61,22 @@ export async function GET(request: NextRequest) {
 
         if (!saved) {
           console.error('[auth/callback] Failed to persist Google tokens to vault')
-        } else {
-          console.info('[auth/callback] Google tokens saved to gmail_credentials', {
-            savedRefreshToken: !!data.session.provider_refresh_token,
-          })
+          return NextResponse.redirect(`${origin}/login?error=gmail_token_save_failed`)
         }
+
+        const refreshCheck = await verifyVaultRefreshAtLogin(data.user.id)
+        if (!refreshCheck.ok) {
+          console.error('[auth/callback] Vault refresh verification failed', {
+            code: refreshCheck.code,
+            error: refreshCheck.error,
+          })
+          return NextResponse.redirect(`${origin}/login?error=gmail_connection_failed`)
+        }
+
+        console.info('[auth/callback] Google tokens saved to gmail_credentials', {
+          savedRefreshToken: hasProviderRefresh || hasStoredRefresh,
+          refreshVerified: true,
+        })
 
         await clearGoogleTokensFromMetadata(supabase, data.user)
       } else {

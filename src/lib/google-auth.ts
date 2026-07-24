@@ -243,6 +243,31 @@ async function refreshGoogleAccessToken(refreshToken: string): Promise<{
   }
 }
 
+/** Prove stored refresh token works at login time (catches bad/missing Google client secrets). */
+export async function verifyVaultRefreshAtLogin(userId: string): Promise<GoogleTokenResult> {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.error('[auth/gmail] Missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET')
+    return {
+      ok: false,
+      code: 'token_refresh_failed',
+      error: 'Server Google OAuth credentials are not configured',
+      needsReauth: false,
+    }
+  }
+
+  const credentials = await getVaultCredentials(userId)
+  if (!credentials?.refresh_token) {
+    return {
+      ok: false,
+      code: 'missing_refresh_token',
+      error: 'No refresh token stored',
+      needsReauth: true,
+    }
+  }
+
+  return tryRefresh(userId, credentials.refresh_token)
+}
+
 async function tryRefresh(userId: string, refreshToken: string): Promise<GoogleTokenResult> {
   try {
     const refreshed = await refreshGoogleAccessToken(refreshToken)
