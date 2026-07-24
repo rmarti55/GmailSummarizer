@@ -108,10 +108,6 @@ export class EmailService {
     currentGmailIds: string[],
     userId: string
   ): Promise<{ success: boolean; deletedCount?: number; error?: unknown }> {
-    if (currentGmailIds.length === 0) {
-      return { success: true, deletedCount: 0 }
-    }
-
     try {
       const { data: existingEmails, error: fetchError } = await supabase
         .from('emails')

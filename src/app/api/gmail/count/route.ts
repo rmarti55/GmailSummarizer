@@ -1,11 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
+function parseSortParams(searchParams: URLSearchParams) {
+  const sort = searchParams.get('sort') === 'sender' ? 'sender' : 'date'
+  const orderParam = searchParams.get('order')
+  const order =
+    orderParam === 'asc' || orderParam === 'desc' ? orderParam : sort === 'date' ? 'desc' : 'asc'
+  return { sort, order }
+}
+
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
-    
-    // Check if user is authenticated
+
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -14,15 +21,25 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '0', 10)
     const offset = parseInt(searchParams.get('offset') || '0', 10)
+    const sender = searchParams.get('sender')
+    const { sort, order } = parseSortParams(searchParams)
 
-    // If requesting emails with pagination
     if (limit > 0) {
-      const { data: emails, error: emailsError } = await supabase
-        .from('emails')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1)
+      let query = supabase.from('emails').select('*').eq('user_id', user.id)
+
+      if (sender) {
+        query = query.eq('sender', sender)
+      }
+
+      if (sort === 'sender') {
+        query = query
+          .order('sender', { ascending: order === 'asc' })
+          .order('created_at', { ascending: false })
+      } else {
+        query = query.order('created_at', { ascending: order === 'asc' })
+      }
+
+      const { data: emails, error: emailsError } = await query.range(offset, offset + limit - 1)
 
       if (emailsError) {
         console.error('Error fetching emails:', emailsError)
@@ -32,35 +49,43 @@ export async function GET(request: Request) {
       return NextResponse.json({ emails: emails || [] })
     }
 
-    // Original count functionality
-    const { count, error: countError } = await supabase
+    let countQuery = supabase
       .from('emails')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
+
+    if (sender) {
+      countQuery = countQuery.eq('sender', sender)
+    }
+
+    const { count, error: countError } = await countQuery
 
     if (countError) {
       console.error('Error counting emails:', countError)
       return NextResponse.json({ error: 'Failed to count emails' }, { status: 500 })
     }
 
-    // Get last sync time (from most recent email)
-    const { data: lastEmail, error: lastEmailError } = await supabase
+    let lastEmailQuery = supabase
       .from('emails')
       .select('created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
 
-    if (lastEmailError && lastEmailError.code !== 'PGRST116') { // PGRST116 = no rows
+    if (sender) {
+      lastEmailQuery = lastEmailQuery.eq('sender', sender)
+    }
+
+    const { data: lastEmail, error: lastEmailError } = await lastEmailQuery.single()
+
+    if (lastEmailError && lastEmailError.code !== 'PGRST116') {
       console.error('Error getting last email:', lastEmailError)
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       totalEmails: count || 0,
-      lastSyncTime: lastEmail?.created_at || null
+      lastSyncTime: lastEmail?.created_at || null,
     })
-
   } catch (error) {
     console.error('Email count API error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

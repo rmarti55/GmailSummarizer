@@ -27,6 +27,7 @@
     "googleapis": "^160.0.0",
     "lucide-react": "^0.544.0",
     "next": "^15.5.21",
+    "radix-ui": "^1.6.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1"

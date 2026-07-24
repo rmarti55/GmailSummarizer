@@ -32,17 +32,24 @@ export async function GET(request: NextRequest) {
           return NextResponse.redirect(`${origin}/login?error=gmail_connection_failed`)
         }
 
+        // Never overwrite a stored refresh token with null — Google often omits it on re-login.
+        const tokenData: Record<string, string> = {
+          google_access_token: data.session.provider_token,
+        }
+        if (data.session.provider_refresh_token) {
+          tokenData.google_refresh_token = data.session.provider_refresh_token
+        }
+
         const { error: updateError } = await supabase.auth.updateUser({
-          data: {
-            google_access_token: data.session.provider_token,
-            google_refresh_token: data.session.provider_refresh_token ?? null,
-          },
+          data: tokenData,
         })
 
         if (updateError) {
           console.error('[auth/callback] Failed to persist Google tokens:', updateError.message)
         } else {
-          console.info('[auth/callback] Google tokens saved to user metadata')
+          console.info('[auth/callback] Google tokens saved to user metadata', {
+            savedRefreshToken: !!data.session.provider_refresh_token,
+          })
         }
       } else {
         console.warn('[auth/callback] No provider_token in session after OAuth exchange')

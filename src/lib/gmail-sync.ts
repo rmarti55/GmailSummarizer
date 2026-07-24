@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { User } from '@supabase/supabase-js'
 import type { GmailMessage } from '@/types'
 import { EmailService } from '@/lib/email-service'
-import { getValidGoogleAccessToken } from '@/lib/google-auth'
+import { resolveGoogleAccessToken } from '@/lib/google-auth'
 import {
   type SyncJob,
   failSyncJob,
@@ -27,6 +27,7 @@ export interface GmailSyncContext {
 
 export interface IncrementalSyncResult {
   syncedCount: number
+  prunedCount: number
   message: string
 }
 
@@ -40,14 +41,14 @@ export async function createGmailSyncContext(
   user: User
 ): Promise<GmailSyncContext | { error: string; status: number }> {
   const { data: { session } } = await supabase.auth.getSession()
-  const accessToken = await getValidGoogleAccessToken(supabase, session, user)
+  const tokenResult = await resolveGoogleAccessToken(supabase, session, user)
 
-  if (!accessToken) {
-    return { error: 'No Google access token found', status: 400 }
+  if (!tokenResult.ok) {
+    return { error: tokenResult.error, status: 400 }
   }
 
   const auth = new google.auth.OAuth2()
-  auth.setCredentials({ access_token: accessToken })
+  auth.setCredentials({ access_token: tokenResult.accessToken })
   const gmail = google.gmail({ version: 'v1', auth })
 
   return { gmail, userId: user.id, supabase }
@@ -95,6 +96,49 @@ export async function fetchMessagesByIds(
   return results
 }
 
+export async function listAllInboxMessageIds(
+  gmail: gmail_v1.Gmail,
+  pageSize = FULL_SYNC_LIST_PAGE_SIZE
+): Promise<string[]> {
+  const ids: string[] = []
+  let pageToken: string | undefined
+
+  do {
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      maxResults: pageSize,
+      q: 'in:inbox',
+      pageToken,
+    })
+
+    const pageIds =
+      response.data.messages
+        ?.map((message) => message.id)
+        .filter((id): id is string => Boolean(id)) ?? []
+
+    ids.push(...pageIds)
+    pageToken = response.data.nextPageToken ?? undefined
+  } while (pageToken)
+
+  return ids
+}
+
+async function pruneStaleInboxEmails(context: GmailSyncContext): Promise<number> {
+  const { gmail, userId, supabase } = context
+  const inboxIds = await listAllInboxMessageIds(gmail)
+  const cleanupResult = await EmailService.cleanupStaleEmails(
+    supabase,
+    inboxIds,
+    userId
+  )
+
+  if (!cleanupResult.success) {
+    throw new Error('Failed to clean up stale emails')
+  }
+
+  return cleanupResult.deletedCount ?? 0
+}
+
 export async function runIncrementalSync(
   context: GmailSyncContext
 ): Promise<IncrementalSyncResult> {
@@ -122,10 +166,15 @@ export async function runIncrementalSync(
       .filter((id): id is string => Boolean(id)) ?? []
 
   if (messageIds.length === 0) {
+    const prunedCount = await pruneStaleInboxEmails(context)
+
     return {
       syncedCount: 0,
+      prunedCount,
       message: latestEmail?.created_at
-        ? 'No new emails since last sync'
+        ? prunedCount > 0
+          ? `No new emails; removed ${prunedCount} that left inbox`
+          : 'No new emails since last sync'
         : 'No emails found in Gmail',
     }
   }
@@ -138,11 +187,17 @@ export async function runIncrementalSync(
     throw new Error('Failed to save emails')
   }
 
+  const syncedCount = saveResult.data?.length ?? 0
+  const prunedCount = await pruneStaleInboxEmails(context)
+
   return {
-    syncedCount: saveResult.data?.length ?? 0,
+    syncedCount,
+    prunedCount,
     message: latestEmail?.created_at
-      ? `Synced ${saveResult.data?.length ?? 0} new emails`
-      : `Initial sync: ${saveResult.data?.length ?? 0} emails loaded`,
+      ? prunedCount > 0
+        ? `Synced ${syncedCount} new emails; removed ${prunedCount} that left inbox`
+        : `Synced ${syncedCount} new emails`
+      : `Initial sync: ${syncedCount} emails loaded`,
   }
 }
 

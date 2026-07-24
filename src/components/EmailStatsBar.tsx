@@ -63,9 +63,10 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
 
       setConnectionStatus(data)
 
-      if (!data.connected) {
+      // Show reconnect CTA for auth/scope failures; transient blips stay in the status row.
+      if (!data.connected && data.needsReauth) {
         setShowReconnectBanner(true)
-      } else {
+      } else if (data.connected) {
         setShowReconnectBanner(false)
       }
     } catch (error) {

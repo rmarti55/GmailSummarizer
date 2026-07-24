@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { clampPageSize } from '@/lib/page-size'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -18,7 +19,7 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1', 10)
-    const limit = parseInt(searchParams.get('limit') || '10', 10)
+    const limit = clampPageSize(parseInt(searchParams.get('limit') || '10', 10))
     const offset = (page - 1) * limit
 
     // Decode the sender parameter (in case it contains special characters)

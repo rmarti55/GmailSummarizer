@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { google } from 'googleapis'
 import { NextResponse } from 'next/server'
-import { getValidGoogleAccessToken, isGmailScopeError } from '@/lib/google-auth'
+import {
+  getGoogleRefreshToken,
+  isGmailScopeError,
+  resolveGoogleAccessToken,
+} from '@/lib/google-auth'
 
 export async function GET() {
   try {
@@ -13,74 +16,52 @@ export async function GET() {
     }
 
     const { data: { session } } = await supabase.auth.getSession()
+    const hasRefreshToken = !!getGoogleRefreshToken(session, user)
 
-    console.info('[auth/gmail]', {
+    console.info('[auth/gmail] connection-status', {
       hasUser: !!user,
       hasSession: !!session,
       hasProviderToken: !!session?.provider_token,
-      hasMetadataToken: !!user.user_metadata?.google_access_token,
+      hasMetadataAccessToken: !!user.user_metadata?.google_access_token,
+      hasMetadataRefreshToken: !!user.user_metadata?.google_refresh_token,
+      hasRefreshToken,
     })
 
-    let accessToken: string | null
     try {
-      accessToken = await getValidGoogleAccessToken(supabase, session, user)
+      const result = await resolveGoogleAccessToken(supabase, session, user)
+
+      if (!result.ok) {
+        console.info('[auth/gmail] connection-status failed', {
+          code: result.code,
+          needsReauth: result.needsReauth,
+          hasRefreshToken,
+        })
+
+        return NextResponse.json({
+          connected: false,
+          error: result.error,
+          code: result.code,
+          lastChecked: new Date().toISOString(),
+          needsReauth: result.needsReauth,
+        })
+      }
+
+      // resolveGoogleAccessToken already verified via getProfile — no second check.
+      return NextResponse.json({
+        connected: true,
+        lastChecked: new Date().toISOString(),
+      })
     } catch (gmailError) {
       if (isGmailScopeError(gmailError)) {
         return NextResponse.json({
           connected: false,
           error: 'Gmail permission missing — reconnect to grant access',
+          code: 'missing_scopes',
           lastChecked: new Date().toISOString(),
           needsReauth: true,
         })
       }
       throw gmailError
-    }
-
-    console.info('[auth/gmail]', { hasAccessToken: !!accessToken })
-
-    if (!accessToken) {
-      return NextResponse.json({
-        connected: false,
-        error: 'No Google access token found',
-        lastChecked: new Date().toISOString(),
-        needsReauth: true,
-      })
-    }
-
-    try {
-      const auth = new google.auth.OAuth2()
-      auth.setCredentials({ access_token: accessToken })
-      const gmail = google.gmail({ version: 'v1', auth })
-
-      await gmail.users.getProfile({ userId: 'me' })
-
-      return NextResponse.json({
-        connected: true,
-        lastChecked: new Date().toISOString(),
-      })
-    } catch (gmailError: unknown) {
-      const err = gmailError as { code?: number; message?: string }
-      console.error('Gmail connection check failed:', gmailError)
-
-      const isAuthError =
-        err?.code === 401 ||
-        err?.message?.includes('invalid_grant') ||
-        err?.message?.includes('unauthorized')
-
-      const isScopeError =
-        err?.code === 403 ||
-        err?.message?.includes('insufficient authentication scopes')
-
-      return NextResponse.json({
-        connected: false,
-        error: isScopeError
-          ? 'Gmail permission missing — reconnect to grant access'
-          : isAuthError
-            ? 'Authentication expired'
-            : 'Connection failed',
-        lastChecked: new Date().toISOString(),
-        needsReauth: isAuthError || isScopeError,
-      })
     }
   } catch (error) {
     console.error('Connection status API error:', error)
@@ -88,6 +69,7 @@ export async function GET() {
       connected: false,
       error: 'Internal server error',
       lastChecked: new Date().toISOString(),
+      needsReauth: false,
     }, { status: 500 })
   }
 }

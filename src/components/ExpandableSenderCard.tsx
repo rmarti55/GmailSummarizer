@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { ChevronRight, ChevronDown, Mail, ExternalLink, Trash2 } from 'lucide-react'
-import { EmailSummaryBlock } from '@/components/EmailSummaryBlock'
+import { ChevronRight, ChevronDown, Mail } from 'lucide-react'
+import { EmailListRow } from '@/components/EmailListRow'
+import { EmailBulkActionBar } from '@/components/EmailBulkActionBar'
+import { PageSizeSelect, type PageSize } from '@/components/PageSizeSelect'
 import { Email } from '@/types'
 
 interface SenderStats {
@@ -34,9 +36,13 @@ interface ExpandableSenderCardProps {
   pagination: PaginationInfo | null
   loading: boolean
   onPageChange: (sender: string, page: number) => void
+  onPageSizeChange: (sender: string, pageSize: PageSize) => void
+  pageSize: number
   onDeleteEmail: (emailId: string, senderName: string) => void
+  onBulkDelete: (emailIds: string[], senderName: string) => Promise<void>
+  onOpenEmail: (email: Email) => void
   deletingId: string | null
-  isSummarizing: (emailId: string) => boolean
+  bulkDeleting?: boolean
 }
 
 export function ExpandableSenderCard({
@@ -48,30 +54,55 @@ export function ExpandableSenderCard({
   pagination,
   loading,
   onPageChange,
+  onPageSizeChange,
+  pageSize,
   onDeleteEmail,
+  onBulkDelete,
+  onOpenEmail,
   deletingId,
-  isSummarizing,
+  bulkDeleting = false,
 }: ExpandableSenderCardProps) {
-  
-  // Format email text into readable paragraphs (reused from Dashboard)
-  const formatEmailText = (text: string): string => {
-    if (!text) return ''
-    
-    return text
-      .split(/\. (?=[A-Z])/) // Split at sentence boundaries
-      .reduce((acc: string[][], sentence: string, i: number) => {
-        if (i % 2 === 0) acc.push([sentence])
-        else acc[acc.length - 1].push(sentence)
-        return acc
-      }, [])
-      .map(paragraph => paragraph.join('. ') + '.')
-      .join('\n\n')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const allSelected = emails.length > 0 && selectedIds.size === emails.length
+
+  const handleSelectChange = (emailId: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) next.add(emailId)
+      else next.delete(emailId)
+      return next
+    })
+  }
+
+  const handleSelectAllInView = (selected: boolean) => {
+    if (selected) {
+      setSelectedIds(new Set(emails.map((email) => email.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
+
+  const handlePageChange = (page: number) => {
+    setSelectedIds(new Set())
+    onPageChange(sender.sender, page)
+  }
+
+  const handlePageSizeChange = (size: PageSize) => {
+    setSelectedIds(new Set())
+    onPageSizeChange(sender.sender, size)
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    await onBulkDelete(ids, sender.sender)
+    setSelectedIds(new Set())
   }
 
   return (
     <Card className="overflow-hidden transition-all duration-300 ease-in-out hover:shadow-md">
-      {/* Sender Header - Always Visible */}
-      <div 
+      <div
         className="flex items-center justify-between py-4 px-6 cursor-pointer hover:bg-accent transition-colors"
         onClick={() => onToggleExpand(sender.sender)}
       >
@@ -80,9 +111,7 @@ export function ExpandableSenderCard({
             {rank}
           </div>
           <div>
-            <p className="font-medium text-foreground">
-              {sender.sender}
-            </p>
+            <p className="font-medium text-foreground">{sender.sender}</p>
             <p className="text-sm text-muted-foreground">
               {sender.percentage}% of total emails
             </p>
@@ -100,132 +129,94 @@ export function ExpandableSenderCard({
         </div>
       </div>
 
-      {/* Expandable Content */}
       {isExpanded && (
         <div className="animate-in slide-in-from-top-2 duration-300">
           <Separator />
-          <CardContent className="p-6 pt-4">
+          <CardContent className="p-4 pt-4">
             {loading ? (
-              // Loading state
-              <div className="space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="space-y-3">
-                    <Skeleton className="h-4 w-1/4" />
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-2/3" />
+              <div className="rounded-md border">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 border-b px-3 py-2.5 last:border-b-0"
+                  >
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 flex-1" />
+                    <Skeleton className="h-4 w-16" />
                   </div>
                 ))}
               </div>
             ) : emails.length === 0 ? (
-              // Empty state
               <div className="text-center py-8">
                 <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  No emails found
-                </h3>
+                <h3 className="text-lg font-medium text-foreground mb-2">No emails found</h3>
                 <p className="text-muted-foreground">
                   No emails from this sender in your current data
                 </p>
               </div>
             ) : (
               <>
-                {/* Email List */}
-                <div className="space-y-4">
+                <EmailBulkActionBar
+                  selectedCount={selectedIds.size}
+                  totalInView={emails.length}
+                  allSelected={allSelected}
+                  onSelectAllInView={handleSelectAllInView}
+                  onClearSelection={() => setSelectedIds(new Set())}
+                  onBulkDelete={handleBulkDelete}
+                  deleting={bulkDeleting}
+                />
+
+                <div className="rounded-md border overflow-hidden">
                   {emails.map((email) => (
-                    <Card key={email.id} className="bg-muted/50">
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
-                          {/* Email Header */}
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1 flex-1">
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="secondary" className="text-xs">
-                                  {new Date(email.created_at).toLocaleDateString()}
-                                </Badge>
-                              </div>
-                              <h4 className="text-base font-medium leading-6 text-foreground">
-                                {email.subject}
-                              </h4>
-                            </div>
-                          </div>
-                          
-                          {/* AI Summary */}
-                          <div>
-                            <EmailSummaryBlock
-                              email={email}
-                              isSummarizing={isSummarizing(email.id)}
-                              compact
-                            />
-                          </div>
-                          
-                          {/* Original Email Content - Collapsible */}
-                          <details className="group">
-                            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center">
-                              <span>Read full email</span>
-                              <svg className="w-4 h-4 ml-1 transform group-open:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </summary>
-                            <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-background rounded-lg p-3 border mt-2">
-                              {formatEmailText(email.body_preview)}
-                            </div>
-                          </details>
-                          
-                          {/* Gmail Link */}
-                          <div className="flex items-center gap-2">
-                            <Button
-                              onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
-                              variant="outline"
-                              size="sm"
-                            >
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              View in Gmail
-                            </Button>
-                            <Button
-                              onClick={() => onDeleteEmail(email.id, sender.sender)}
-                              variant="outline"
-                              size="sm"
-                              disabled={deletingId === email.id}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              {deletingId === email.id ? 'Deleting...' : 'Delete'}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <EmailListRow
+                      key={email.id}
+                      email={email}
+                      selected={selectedIds.has(email.id)}
+                      onSelectChange={handleSelectChange}
+                      onOpen={onOpenEmail}
+                      onDelete={(emailId) => onDeleteEmail(emailId, sender.sender)}
+                      deleting={deletingId === email.id}
+                      showSender={false}
+                    />
                   ))}
                 </div>
 
-                {/* Pagination */}
-                {pagination && pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between pt-4 mt-6">
-                    <Separator className="absolute left-0 right-0 -mt-4" />
+                {pagination && (
+                  <div className="flex flex-col gap-3 pt-4 mt-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-muted-foreground">
-                      Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} emails
+                      Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
+                      {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                      {pagination.total} emails
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!pagination.hasPrev}
-                        onClick={() => onPageChange(sender.sender, pagination.page - 1)}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {pagination.page} of {pagination.totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!pagination.hasNext}
-                        onClick={() => onPageChange(sender.sender, pagination.page + 1)}
-                      >
-                        Next
-                      </Button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <PageSizeSelect
+                        id={`sender-page-size-${rank}`}
+                        value={pageSize}
+                        onChange={handlePageSizeChange}
+                      />
+                      {pagination.totalPages > 1 && (
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!pagination.hasPrev}
+                            onClick={() => handlePageChange(pagination.page - 1)}
+                          >
+                            Previous
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Page {pagination.page} of {pagination.totalPages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!pagination.hasNext}
+                            onClick={() => handlePageChange(pagination.page + 1)}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

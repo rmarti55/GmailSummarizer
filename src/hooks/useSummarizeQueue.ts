@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SummarizeQueue } from '@/lib/client-summarize'
-import { Email } from '@/types'
 
 export function useSummarizeQueue(
   onComplete: (emailId: string, summary: string) => void
@@ -31,10 +30,9 @@ export function useSummarizeQueue(
     }
   }, [])
 
-  const enqueueMissingSummaries = useCallback((emails: Email[]) => {
-    const ids = emails.filter((email) => !email.summary).map((email) => email.id)
-    if (ids.length === 0) return
-    queueRef.current?.enqueue(ids)
+  const enqueueSummary = useCallback((emailId: string) => {
+    if (!emailId) return
+    queueRef.current?.enqueue([emailId])
   }, [])
 
   const isSummarizing = useCallback(
@@ -42,5 +40,5 @@ export function useSummarizeQueue(
     [summarizingIds]
   )
 
-  return { enqueueMissingSummaries, isSummarizing }
+  return { enqueueSummary, isSummarizing }
 }

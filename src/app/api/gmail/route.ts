@@ -17,6 +17,7 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
 
     return NextResponse.json({
       syncedCount: result.syncedCount,
+      prunedCount: result.prunedCount,
       message: result.message,
     })
   } catch (error) {

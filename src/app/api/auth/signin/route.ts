@@ -6,22 +6,33 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { origin } = new URL(request.url)
-    
+
     // Get the redirect URL (where to go after successful auth)
     const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/dashboard'
     const forceConsent = request.nextUrl.searchParams.get('consent') === 'true'
-    
-    // Start OAuth flow with Google
+
+    // Offline refresh tokens are unreliable without consent. Force consent when
+    // explicitly requested, on first login, or when no refresh token is stored.
+    const { data: { user } } = await supabase.auth.getUser()
+    const hasStoredRefreshToken = !!user?.user_metadata?.google_refresh_token
+    const useConsent = forceConsent || !user || !hasStoredRefreshToken
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         scopes: 'openid email profile https://mail.google.com/',
         queryParams: {
           access_type: 'offline',
-          prompt: forceConsent ? 'consent' : 'select_account',
+          prompt: useConsent ? 'consent' : 'select_account',
         },
         redirectTo: `${origin}/api/auth/callback?next=${encodeURIComponent(redirectTo)}`,
       },
+    })
+
+    console.info('[auth/signin]', {
+      useConsent,
+      hasUser: !!user,
+      hasStoredRefreshToken,
     })
 
     if (error) {
@@ -30,13 +41,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (data.url) {
-      // Redirect to Google OAuth
       return NextResponse.redirect(data.url)
     }
 
-    // Fallback redirect
     return NextResponse.redirect(`${origin}/login`)
-
   } catch (error) {
     console.error('Signin API error:', error)
     const { origin } = new URL(request.url)

@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { PageSizeSelect, type PageSize } from '@/components/PageSizeSelect'
 
 interface PaginationControlsProps {
   currentPage: number
@@ -20,6 +21,7 @@ interface PaginationControlsProps {
   totalCount: number
   itemsPerPage: number
   onPageChange: (page: number) => void
+  onPageSizeChange?: (size: PageSize) => void
 }
 
 export function PaginationControls({
@@ -28,10 +30,11 @@ export function PaginationControls({
   totalCount,
   itemsPerPage,
   onPageChange,
+  onPageSizeChange,
 }: PaginationControlsProps) {
   const [jumpValue, setJumpValue] = useState('')
 
-  if (totalPages <= 1) return null
+  if (totalPages <= 1 && !onPageSizeChange) return null
 
   const startItem = (currentPage - 1) * itemsPerPage + 1
   const endItem = Math.min(currentPage * itemsPerPage, totalCount)
@@ -99,63 +102,78 @@ export function PaginationControls({
         </div>
         
         {/* Center: Pagination controls */}
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => onPageChange(currentPage - 1)}
-                className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer hover:bg-accent"}
-              />
-            </PaginationItem>
-            
-            {getVisiblePages().map((page, index) => (
-              <PaginationItem key={index}>
-                {page === 'ellipsis' ? (
-                  <PaginationEllipsis />
-                ) : (
-                  <PaginationLink
-                    onClick={() => onPageChange(page as number)}
-                    isActive={page === currentPage}
-                    className="cursor-pointer hover:bg-accent"
-                  >
-                    {page}
-                  </PaginationLink>
-                )}
+        {totalPages > 1 ? (
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => onPageChange(currentPage - 1)}
+                  className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer hover:bg-accent"}
+                />
               </PaginationItem>
-            ))}
-            
-            <PaginationItem>
-              <PaginationNext 
-                onClick={() => onPageChange(currentPage + 1)}
-                className={currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer hover:bg-accent"}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+              
+              {getVisiblePages().map((page, index) => (
+                <PaginationItem key={index}>
+                  {page === 'ellipsis' ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <PaginationLink
+                      onClick={() => onPageChange(page as number)}
+                      isActive={page === currentPage}
+                      className="cursor-pointer hover:bg-accent"
+                    >
+                      {page}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => onPageChange(currentPage + 1)}
+                  className={currentPage >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer hover:bg-accent"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        ) : (
+          <div />
+        )}
         
-        {/* Right: Jump to page */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Jump:</span>
-          <Input
-            type="number"
-            placeholder="Page"
-            value={jumpValue}
-            onChange={(e) => setJumpValue(e.target.value)}
-            onKeyDown={handleJumpSubmit}
-            className="w-20 h-9 text-center"
-            min={1}
-            max={totalPages}
-            aria-label={`Jump to page (1-${totalPages})`}
-          />
-          <Button
-            onClick={handleJumpClick}
-            variant="outline"
-            size="sm"
-            className="h-9 px-3"
-            disabled={!jumpValue || parseInt(jumpValue) < 1 || parseInt(jumpValue) > totalPages}
-          >
-            Go
-          </Button>
+        {/* Right: Page size + jump to page */}
+        <div className="flex items-center gap-4">
+          {onPageSizeChange && (
+            <PageSizeSelect
+              id="pagination-page-size-desktop"
+              value={itemsPerPage}
+              onChange={onPageSizeChange}
+            />
+          )}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Jump:</span>
+              <Input
+                type="number"
+                placeholder="Page"
+                value={jumpValue}
+                onChange={(e) => setJumpValue(e.target.value)}
+                onKeyDown={handleJumpSubmit}
+                className="w-20 h-9 text-center"
+                min={1}
+                max={totalPages}
+                aria-label={`Jump to page (1-${totalPages})`}
+              />
+              <Button
+                onClick={handleJumpClick}
+                variant="outline"
+                size="sm"
+                className="h-9 px-3"
+                disabled={!jumpValue || parseInt(jumpValue) < 1 || parseInt(jumpValue) > totalPages}
+              >
+                Go
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -169,62 +187,76 @@ export function PaginationControls({
         </div>
         
         {/* Navigation controls */}
-        <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3 border shadow-sm">
-          <Button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2 min-w-[100px]"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Previous
-          </Button>
-          
-          <div className="text-sm font-medium text-foreground">
-            {currentPage} of {totalPages}
-          </div>
-          
-          <Button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2 min-w-[100px]"
-            aria-label="Next page"
-          >
-            Next
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-        
-        {/* Jump to page */}
-        <div className="bg-muted/50 rounded-lg px-4 py-3 border shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground shrink-0">Jump:</span>
-            <Input
-              type="number"
-              placeholder="##"
-              value={jumpValue}
-              onChange={(e) => setJumpValue(e.target.value)}
-              onKeyDown={handleJumpSubmit}
-              className="flex-1 text-center min-w-[60px]"
-              min={1}
-              max={totalPages}
-              aria-label={`Jump to page (1-${totalPages})`}
-            />
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3 border shadow-sm">
             <Button
-              onClick={handleJumpClick}
-              variant="default"
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage <= 1}
+              variant="outline"
               size="sm"
-              disabled={!jumpValue || parseInt(jumpValue) < 1 || parseInt(jumpValue) > totalPages}
-              className="shrink-0 px-4"
+              className="flex items-center gap-2 min-w-[100px]"
+              aria-label="Previous page"
             >
-              Go
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </Button>
+            
+            <div className="text-sm font-medium text-foreground">
+              {currentPage} of {totalPages}
+            </div>
+            
+            <Button
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 min-w-[100px]"
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
-        </div>
+        )}
+
+        {onPageSizeChange && (
+          <div className="bg-muted/50 rounded-lg px-4 py-3 border shadow-sm">
+            <PageSizeSelect
+              id="pagination-page-size-mobile"
+              value={itemsPerPage}
+              onChange={onPageSizeChange}
+            />
+          </div>
+        )}
+        
+        {/* Jump to page */}
+        {totalPages > 1 && (
+          <div className="bg-muted/50 rounded-lg px-4 py-3 border shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground shrink-0">Jump:</span>
+              <Input
+                type="number"
+                placeholder="##"
+                value={jumpValue}
+                onChange={(e) => setJumpValue(e.target.value)}
+                onKeyDown={handleJumpSubmit}
+                className="flex-1 text-center min-w-[60px]"
+                min={1}
+                max={totalPages}
+                aria-label={`Jump to page (1-${totalPages})`}
+              />
+              <Button
+                onClick={handleJumpClick}
+                variant="default"
+                size="sm"
+                disabled={!jumpValue || parseInt(jumpValue) < 1 || parseInt(jumpValue) > totalPages}
+                className="shrink-0 px-4"
+              >
+                Go
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
