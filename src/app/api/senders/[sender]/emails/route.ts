@@ -4,9 +4,10 @@ import type { NextRequest } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { sender: string } }
+  { params }: { params: Promise<{ sender: string }> }
 ) {
   try {
+    const { sender } = await params
     const supabase = await createClient()
     
     // Check if user is authenticated
@@ -21,7 +22,7 @@ export async function GET(
     const offset = (page - 1) * limit
 
     // Decode the sender parameter (in case it contains special characters)
-    const senderEmail = decodeURIComponent(params.sender)
+    const senderEmail = decodeURIComponent(sender)
 
     // Get total count for pagination
     const { count: totalCount, error: countError } = await supabase
