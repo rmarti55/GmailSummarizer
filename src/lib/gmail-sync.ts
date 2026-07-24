@@ -269,3 +269,25 @@ export async function runFullSyncChunk(
     return { job, done: false }
   }
 }
+
+function isGmailNotFoundError(error: unknown): boolean {
+  const err = error as { code?: number; response?: { status?: number } }
+  return err?.code === 404 || err?.response?.status === 404
+}
+
+export async function trashGmailMessage(
+  gmail: gmail_v1.Gmail,
+  gmailId: string
+): Promise<void> {
+  try {
+    await gmail.users.messages.trash({
+      userId: 'me',
+      id: gmailId,
+    })
+  } catch (error) {
+    if (isGmailNotFoundError(error)) {
+      return
+    }
+    throw error
+  }
+}

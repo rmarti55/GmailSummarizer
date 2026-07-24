@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Mail, RefreshCw, Sparkles, LogOut, ExternalLink } from 'lucide-react'
+import { Mail, RefreshCw, LogOut, ExternalLink, Trash2 } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { AppHeader } from '@/components/AppHeader'
 import { PaginationControls } from '@/components/PaginationControls'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
+import { deleteEmailFromGmail } from '@/lib/client-gmail-delete'
 import { Email } from '@/types'
 
 export default function Dashboard() {
@@ -18,6 +19,7 @@ export default function Dashboard() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [totalEmailCount, setTotalEmailCount] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const EMAILS_PER_PAGE = 20
 
   // Format email text into readable paragraphs
@@ -92,6 +94,25 @@ export default function Dashboard() {
   const handleFullSync = (silent = false) => {
     fetchEmailCount()
     fetchEmails(currentPage, silent)
+  }
+
+  const handleDeleteEmail = async (emailId: string) => {
+    if (!confirm('Move this email to Gmail Trash and remove it from the app?')) return
+
+    setDeletingId(emailId)
+    try {
+      const success = await deleteEmailFromGmail(emailId)
+      if (success) {
+        setEmails((prev) => prev.filter((email) => email.id !== emailId))
+        setTotalEmailCount((prev) => Math.max(0, prev - 1))
+      } else {
+        alert('Failed to delete email. Please try again.')
+      }
+    } catch (error) {
+      console.error('Failed to delete email:', error)
+      alert('Failed to delete email. Please try again.')
+    }
+    setDeletingId(null)
   }
 
   const handleLogout = async () => {
@@ -260,7 +281,7 @@ export default function Dashboard() {
                     </div>
                   </details>
                   
-                  <div className="mt-4">
+                  <div className="mt-4 flex items-center gap-2">
                     <Button
                       onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
                       variant="outline"
@@ -268,6 +289,16 @@ export default function Dashboard() {
                     >
                       <ExternalLink className="w-4 h-4 mr-2" />
                       View in Gmail
+                    </Button>
+                    <Button
+                      onClick={() => handleDeleteEmail(email.id)}
+                      variant="outline"
+                      size="sm"
+                      disabled={deletingId === email.id}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {deletingId === email.id ? 'Deleting...' : 'Delete'}
                     </Button>
                   </div>
                 </CardContent>

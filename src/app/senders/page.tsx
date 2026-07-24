@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
 import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
+import { deleteEmailFromGmail } from '@/lib/client-gmail-delete'
 import { Mail, BarChart3 } from 'lucide-react'
 import { SenderStats, PaginationInfo, Email } from '@/types'
 
@@ -17,6 +18,7 @@ export default function SendersPage() {
   const [senderEmails, setSenderEmails] = useState<Record<string, Email[]>>({})
   const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleRefresh = async () => {
     await syncNewEmailsFromGmail()
@@ -112,6 +114,45 @@ export default function SendersPage() {
     await fetchSenderEmails(sender, page)
   }
 
+  const handleDeleteEmail = async (emailId: string, senderName: string) => {
+    if (!confirm('Move this email to Gmail Trash and remove it from the app?')) return
+
+    setDeletingId(emailId)
+    try {
+      const success = await deleteEmailFromGmail(emailId)
+      if (success) {
+        setSenderEmails((prev) => ({
+          ...prev,
+          [senderName]: (prev[senderName] || []).filter((email) => email.id !== emailId),
+        }))
+        setSenderPagination((prev) => {
+          const pagination = prev[senderName]
+          if (!pagination) return prev
+          return {
+            ...prev,
+            [senderName]: {
+              ...pagination,
+              total: Math.max(0, pagination.total - 1),
+            },
+          }
+        })
+        setSenders((prev) =>
+          prev.map((sender) =>
+            sender.sender === senderName
+              ? { ...sender, count: Math.max(0, sender.count - 1) }
+              : sender
+          )
+        )
+      } else {
+        alert('Failed to delete email. Please try again.')
+      }
+    } catch (error) {
+      console.error('Failed to delete email:', error)
+      alert('Failed to delete email. Please try again.')
+    }
+    setDeletingId(null)
+  }
+
   useEffect(() => {
     fetchSenderStats()
   }, [])
@@ -185,6 +226,8 @@ export default function SendersPage() {
                 pagination={senderPagination[sender.sender] || null}
                 loading={senderLoading[sender.sender] || false}
                 onPageChange={handlePageChange}
+                onDeleteEmail={handleDeleteEmail}
+                deletingId={deletingId}
               />
             ))}
           </div>

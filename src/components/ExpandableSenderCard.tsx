@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
-import { ChevronRight, ChevronDown, Mail, ExternalLink } from 'lucide-react'
+import { ChevronRight, ChevronDown, Mail, ExternalLink, Trash2 } from 'lucide-react'
 import { AdaptiveSummary } from '@/components/AdaptiveSummary'
 import { Email } from '@/types'
 
@@ -34,6 +34,8 @@ interface ExpandableSenderCardProps {
   pagination: PaginationInfo | null
   loading: boolean
   onPageChange: (sender: string, page: number) => void
+  onDeleteEmail: (emailId: string, senderName: string) => void
+  deletingId: string | null
 }
 
 export function ExpandableSenderCard({
@@ -44,7 +46,9 @@ export function ExpandableSenderCard({
   emails,
   pagination,
   loading,
-  onPageChange
+  onPageChange,
+  onDeleteEmail,
+  deletingId,
 }: ExpandableSenderCardProps) {
   
   // Format email text into readable paragraphs (reused from Dashboard)
@@ -169,14 +173,24 @@ export function ExpandableSenderCard({
                           </details>
                           
                           {/* Gmail Link */}
-                          <div>
-                              <Button
+                          <div className="flex items-center gap-2">
+                            <Button
                               onClick={() => window.open(`https://mail.google.com/mail/u/0/#inbox/${email.gmail_id}`, '_blank')}
                               variant="outline"
                               size="sm"
                             >
                               <ExternalLink className="w-4 h-4 mr-2" />
                               View in Gmail
+                            </Button>
+                            <Button
+                              onClick={() => onDeleteEmail(email.id, sender.sender)}
+                              variant="outline"
+                              size="sm"
+                              disabled={deletingId === email.id}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              {deletingId === email.id ? 'Deleting...' : 'Delete'}
                             </Button>
                           </div>
                         </div>
