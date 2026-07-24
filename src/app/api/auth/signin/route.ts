@@ -9,12 +9,17 @@ export async function GET(request: NextRequest) {
     
     // Get the redirect URL (where to go after successful auth)
     const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/dashboard'
+    const forceConsent = request.nextUrl.searchParams.get('consent') === 'true'
     
     // Start OAuth flow with Google
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        scopes: 'https://mail.google.com/',
+        scopes: 'openid email profile https://mail.google.com/',
+        queryParams: {
+          access_type: 'offline',
+          prompt: forceConsent ? 'consent' : 'select_account',
+        },
         redirectTo: `${origin}/api/auth/callback?next=${encodeURIComponent(redirectTo)}`,
       },
     })

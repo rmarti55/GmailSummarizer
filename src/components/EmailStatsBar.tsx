@@ -24,7 +24,7 @@ interface ConnectionStatus {
 }
 
 interface EmailStatsBarProps {
-  onFullSync: () => void
+  onFullSync?: (silent?: boolean) => void
 }
 
 export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
@@ -32,7 +32,6 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ connected: true, lastChecked: new Date().toISOString() })
   const [loading, setLoading] = useState(true)
-  const [pollCount, setPollCount] = useState(0)
   const [showReconnectBanner, setShowReconnectBanner] = useState(false)
 
   const fetchStats = async () => {
@@ -43,6 +42,10 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
         setStats({
           totalEmails: data.totalEmails,
           lastSyncTime: data.lastSyncTime
+        })
+        console.info('[Gmail] stats', {
+          totalEmails: data.totalEmails,
+          lastSyncTime: data.lastSyncTime,
         })
       }
     } catch (error) {
@@ -55,13 +58,14 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
     try {
       const response = await fetch('/api/gmail/connection-status')
       const data = await response.json()
-      
+
+      console.info('[Gmail] connection-status', JSON.stringify(data))
+
       setConnectionStatus(data)
-      
-      // Show reconnect banner if disconnected and needs reauth
-      if (!data.connected && data.needsReauth) {
+
+      if (!data.connected) {
         setShowReconnectBanner(true)
-      } else if (data.connected) {
+      } else {
         setShowReconnectBanner(false)
       }
     } catch (error) {
@@ -80,30 +84,28 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
       if (response.ok) {
         const progress = await response.json()
         setSyncProgress(progress)
-        setPollCount(prev => prev + 1)
-        
-        // If sync is running, continue polling (max 30 attempts = 1 minute)
-        if (progress.isRunning && pollCount < 30) {
+
+        if (progress.isRunning) {
+          // Refresh counts and inbox while sync runs in the background
+          fetchStats()
+          onFullSync?.(true)
           setTimeout(fetchSyncProgress, 2000)
         } else {
-          // Sync completed or max polls reached, refresh stats
+          // Sync finished — final refresh
           fetchStats()
-          setPollCount(0)
+          onFullSync?.(false)
         }
       }
     } catch (error) {
       console.error('Failed to fetch sync progress:', error)
-      setPollCount(0)
     }
   }
 
   const handleFullSync = async () => {
     try {
-      setPollCount(0) // Reset poll count
       const response = await fetch('/api/gmail/full-sync', { method: 'POST' })
       if (response.ok) {
-        onFullSync()
-        // Start polling for progress
+        onFullSync?.(false)
         fetchSyncProgress()
       } else {
         const data = await response.json()
@@ -138,8 +140,7 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   }
 
   const handleReconnect = () => {
-    // Redirect to Google OAuth
-    window.location.href = '/api/auth/signin'
+    window.location.href = '/api/auth/signin?consent=true'
   }
 
   const dismissReconnectBanner = () => {
@@ -149,6 +150,19 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   useEffect(() => {
     fetchStats()
     fetchConnectionStatus()
+
+    // Resume polling if sync is already running (e.g. page refresh mid-sync)
+    fetch('/api/gmail/sync-status')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((progress) => {
+        if (progress) {
+          setSyncProgress(progress)
+          if (progress.isRunning) {
+            fetchSyncProgress()
+          }
+        }
+      })
+      .catch((error) => console.error('Failed to check sync status:', error))
     
     // Set up 10-minute polling for connection status
     const connectionInterval = setInterval(fetchConnectionStatus, 10 * 60 * 1000) // 10 minutes
@@ -180,7 +194,7 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
               <div className="flex items-center space-x-3">
                 <AlertTriangle className="w-4 h-4 text-yellow-600" />
                 <span className="text-sm text-yellow-800">
-                  Gmail connection lost. Your emails may be out of sync.
+                  {connectionStatus.error ?? 'Gmail connection lost. Your emails may be out of sync.'}
                 </span>
               </div>
               <div className="flex items-center space-x-2">
@@ -221,6 +235,11 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
               }`}>
                 Gmail {connectionStatus.connected ? 'Connected' : 'Disconnected'}
               </span>
+              {!connectionStatus.connected && connectionStatus.error && (
+                <span className="text-xs text-red-600 hidden sm:inline">
+                  — {connectionStatus.error}
+                </span>
+              )}
             </div>
             
             <div className="flex items-center space-x-2">

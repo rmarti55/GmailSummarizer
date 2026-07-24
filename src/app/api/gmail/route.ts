@@ -3,21 +3,27 @@ import { NextResponse } from 'next/server'
 import type { GmailMessage } from '@/types'
 import { EmailService } from '@/lib/email-service'
 import { withAuthHandler } from '@/lib/auth-middleware'
+import { getValidGoogleAccessToken } from '@/lib/google-auth'
 
 export const GET = withAuthHandler(async ({ user, supabase }) => {
   try {
-    // Get user's Google tokens from session
     const { data: { session } } = await supabase.auth.getSession()
-    console.log('Session data:', { 
-      hasSession: !!session, 
+    const accessToken = await getValidGoogleAccessToken(supabase, session, user)
+
+    console.info('[auth/gmail] sync', {
+      hasSession: !!session,
       hasProviderToken: !!session?.provider_token,
-      provider: session?.user?.app_metadata?.provider 
+      hasMetadataToken: !!user.user_metadata?.google_access_token,
+      hasAccessToken: !!accessToken,
     })
-    
-    if (!session?.provider_token) {
-      return NextResponse.json({ 
-        error: 'No Google access token found', 
-        debug: { hasSession: !!session, provider: session?.user?.app_metadata?.provider }
+
+    if (!accessToken) {
+      return NextResponse.json({
+        error: 'No Google access token found',
+        debug: {
+          hasSession: !!session,
+          hasMetadataToken: !!user.user_metadata?.google_access_token,
+        },
       }, { status: 400 })
     }
 
@@ -44,7 +50,7 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
 
     // Initialize Gmail API
     const auth = new google.auth.OAuth2()
-    auth.setCredentials({ access_token: session.provider_token })
+    auth.setCredentials({ access_token: accessToken })
     const gmail = google.gmail({ version: 'v1', auth })
 
     // Fetch emails from Gmail inbox

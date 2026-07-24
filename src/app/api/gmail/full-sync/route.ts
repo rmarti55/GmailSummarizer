@@ -5,6 +5,7 @@ import { EmailService } from '@/lib/email-service'
 import { getSyncProgress, setSyncProgress, isSyncRunning } from '@/lib/sync-progress'
 import { withAuthHandler } from '@/lib/auth-middleware'
 import { createClient } from '@/lib/supabase/server'
+import { getValidGoogleAccessToken } from '@/lib/google-auth'
 
 type GmailListMessagesResponse = {
   data: gmail_v1.Schema$ListMessagesResponse
@@ -21,18 +22,23 @@ export const POST = withAuthHandler(async ({ user, supabase }) => {
       }, { status: 409 })
     }
 
-    // Get user's Google tokens from session
     const { data: { session } } = await supabase.auth.getSession()
-    
-    if (!session?.provider_token) {
-      return NextResponse.json({ 
-        error: 'No Google access token found'
+    const accessToken = await getValidGoogleAccessToken(supabase, session, user)
+
+    console.info('[auth/gmail] full-sync', {
+      hasProviderToken: !!session?.provider_token,
+      hasMetadataToken: !!user.user_metadata?.google_access_token,
+      hasAccessToken: !!accessToken,
+    })
+
+    if (!accessToken) {
+      return NextResponse.json({
+        error: 'No Google access token found',
       }, { status: 400 })
     }
 
-    // Initialize Gmail API
     const auth = new google.auth.OAuth2()
-    auth.setCredentials({ access_token: session.provider_token })
+    auth.setCredentials({ access_token: accessToken })
     const gmail = google.gmail({ version: 'v1', auth })
 
     // Start sync process in background

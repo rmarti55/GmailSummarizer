@@ -1,11 +1,23 @@
 'use client'
 
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, Sparkles } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+const LOGIN_ERRORS: Record<string, string> = {
+  gmail_scope_missing:
+    'Gmail access was not granted. Revoke this app at myaccount.google.com/permissions, then sign in again and allow Gmail access.',
+  oauth_failed: 'Sign in failed. Please try again.',
+}
+
+function LoginPageContent() {
+  const searchParams = useSearchParams()
+  const errorCode = searchParams.get('error')
+  const errorMessage = errorCode ? LOGIN_ERRORS[errorCode] : null
+
   const handleGoogleLogin = async () => {
     // Check if Supabase is configured
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'your_supabase_project_url') {
@@ -14,11 +26,16 @@ export default function LoginPage() {
     }
     
     const supabase = createClient()
+    const forceConsent = errorCode === 'gmail_scope_missing'
     
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        scopes: 'https://mail.google.com/',
+        scopes: 'openid email profile https://mail.google.com/',
+        queryParams: {
+          access_type: 'offline',
+          prompt: forceConsent ? 'consent' : 'select_account',
+        },
         redirectTo: `${window.location.origin}/api/auth/callback`,
       },
     })
@@ -40,6 +57,11 @@ export default function LoginPage() {
         </CardHeader>
         
         <CardContent className="space-y-6">
+          {errorMessage && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+              {errorMessage}
+            </p>
+          )}
           <div className="space-y-4">
             <div className="flex items-center space-x-3 text-sm text-muted-foreground">
               <Sparkles className="w-4 h-4 text-yellow-500" />
@@ -84,5 +106,17 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }

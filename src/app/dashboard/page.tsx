@@ -47,8 +47,8 @@ export default function Dashboard() {
     }
   }
 
-  const fetchEmails = async (page: number = 1) => {
-    setLoading(true)
+  const fetchEmails = async (page: number = 1, silent = false) => {
+    if (!silent) setLoading(true)
 
     try {
       const offset = (page - 1) * EMAILS_PER_PAGE
@@ -75,7 +75,7 @@ export default function Dashboard() {
       console.error('Failed to fetch emails:', error)
     }
     
-    setLoading(false)
+    if (!silent) setLoading(false)
   }
 
   const handlePageChange = (page: number) => {
@@ -83,13 +83,9 @@ export default function Dashboard() {
     fetchEmails(page)
   }
 
-  const handleFullSync = () => {
-    // The full sync will be handled by the EmailStatsBar component
-    // We just need to refresh the count and emails after sync
-    setTimeout(() => {
-      fetchEmailCount()
-      fetchEmails()
-    }, 1000)
+  const handleFullSync = (silent = false) => {
+    fetchEmailCount()
+    fetchEmails(currentPage, silent)
   }
 
   const summarizeEmail = async (emailId: string) => {

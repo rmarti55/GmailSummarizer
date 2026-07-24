@@ -12,7 +12,7 @@ interface AppHeaderProps {
   onClearSummaries: () => void
   onClearAllEmails: () => void
   onLogout: () => void
-  onFullSync?: () => void
+  onFullSync?: (silent?: boolean) => void
   loading?: boolean
 }
 
