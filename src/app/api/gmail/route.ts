@@ -24,17 +24,17 @@ export const GET = withAuthHandler(async ({ user, supabase }) => {
     // Get the most recent email timestamp from database
     const { data: latestEmail } = await supabase
       .from('emails')
-      .select('received_at')
+      .select('created_at')
       .eq('user_id', user.id)
-      .order('received_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .single()
 
     // Build Gmail query - only fetch emails newer than last sync
     let gmailQuery = 'in:inbox'
-    if (latestEmail?.received_at) {
+    if (latestEmail?.created_at) {
       // Convert to Gmail's date format (YYYY/MM/DD)
-      const lastSyncDate = new Date(latestEmail.received_at)
+      const lastSyncDate = new Date(latestEmail.created_at)
       const gmailDateFormat = `${lastSyncDate.getFullYear()}/${String(lastSyncDate.getMonth() + 1).padStart(2, '0')}/${String(lastSyncDate.getDate()).padStart(2, '0')}`
       gmailQuery = `in:inbox after:${gmailDateFormat}`
       console.log(`🔄 Refreshing: fetching emails after ${gmailDateFormat}`)
