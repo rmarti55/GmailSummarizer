@@ -6,6 +6,8 @@ import {
 } from '@/lib/gmail-sync'
 import { toSyncProgress } from '@/lib/sync-jobs'
 
+export const maxDuration = 60
+
 export const POST = withAuthHandler(async ({ user, supabase }) => {
   try {
     const context = await createGmailSyncContext(supabase, user)

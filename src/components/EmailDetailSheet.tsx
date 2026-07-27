@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetContent,
-  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
@@ -49,7 +48,11 @@ export function EmailDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-lg overflow-y-auto"
+        aria-describedby={undefined}
+      >
         {email && (
           <>
             <SheetHeader className="text-left">
@@ -64,20 +67,12 @@ export function EmailDetailSheet({
               <SheetTitle className="text-left leading-snug">
                 {email.subject || '(no subject)'}
               </SheetTitle>
-              <SheetDescription className="sr-only">
-                Email detail and AI summary
-              </SheetDescription>
             </SheetHeader>
 
-            <div className="mt-2 space-y-4 px-4 pb-6">
+            <div className="mt-2 space-y-5 px-4 pb-6">
               <EmailSummaryBlock email={email} isSummarizing={isSummarizing} />
 
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Full email
-                </p>
-                <EmailBody text={email.body_preview} />
-              </div>
+              <EmailBody text={email.body_preview} />
 
               <div className="flex items-center gap-2 pt-2">
                 <Button

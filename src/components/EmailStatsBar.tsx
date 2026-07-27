@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Mail, RefreshCw, Clock, CheckCircle, AlertTriangle, Wifi, WifiOff } from 'lucide-react'
@@ -27,12 +27,15 @@ interface EmailStatsBarProps {
   onFullSync?: (silent?: boolean) => void
 }
 
+const SYNC_ERROR_BACKOFF_MS = 2000
+
 export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
   const [stats, setStats] = useState<EmailStats>({ totalEmails: 0, lastSyncTime: null })
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ connected: true, lastChecked: new Date().toISOString() })
   const [loading, setLoading] = useState(true)
   const [showReconnectBanner, setShowReconnectBanner] = useState(false)
+  const syncLoopRunningRef = useRef(false)
 
   const fetchStats = async () => {
     try {
@@ -79,6 +82,55 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
     }
   }
 
+  const runSyncLoop = async () => {
+    if (syncLoopRunningRef.current) {
+      return
+    }
+
+    syncLoopRunningRef.current = true
+
+    try {
+      while (true) {
+        const response = await fetch('/api/gmail/full-sync', { method: 'POST' })
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}))
+          console.error('Sync chunk failed:', data.error ?? response.statusText)
+
+          if (response.status === 429) {
+            await new Promise((resolve) => setTimeout(resolve, SYNC_ERROR_BACKOFF_MS))
+            continue
+          }
+
+          break
+        }
+
+        const data = await response.json()
+        if (data.progress) {
+          setSyncProgress(data.progress)
+        }
+
+        fetchStats()
+        onFullSync?.(true)
+
+        if (!data.progress?.isRunning) {
+          onFullSync?.(false)
+          fetchStats()
+          break
+        }
+      }
+    } catch (error) {
+      console.error('Failed to process sync chunk:', error)
+      setTimeout(() => {
+        syncLoopRunningRef.current = false
+        void runSyncLoop()
+      }, SYNC_ERROR_BACKOFF_MS)
+      return
+    }
+
+    syncLoopRunningRef.current = false
+  }
+
   const fetchSyncProgress = async () => {
     try {
       const response = await fetch('/api/gmail/sync-status')
@@ -87,12 +139,7 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
         setSyncProgress(progress)
 
         if (progress.isRunning) {
-          fetchStats()
-          onFullSync?.(true)
-
-          // Process next sync chunk (Vercel-safe resumable sync)
-          await fetch('/api/gmail/full-sync', { method: 'POST' })
-          setTimeout(fetchSyncProgress, 2000)
+          void runSyncLoop()
         } else {
           fetchStats()
           onFullSync?.(false)
@@ -111,8 +158,13 @@ export function EmailStatsBar({ onFullSync }: EmailStatsBarProps) {
         if (data.progress) {
           setSyncProgress(data.progress)
         }
-        onFullSync?.(false)
-        fetchSyncProgress()
+
+        if (data.progress?.isRunning) {
+          void runSyncLoop()
+        } else {
+          onFullSync?.(false)
+          fetchStats()
+        }
       } else {
         const data = await response.json()
         console.error('Failed to start full sync:', data.error)

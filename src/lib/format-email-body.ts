@@ -1,3 +1,54 @@
+const NAMED_HTML_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  rsquo: '\u2019',
+  lsquo: '\u2018',
+  rdquo: '\u201D',
+  ldquo: '\u201C',
+  mdash: '\u2014',
+  ndash: '\u2013',
+  hellip: '\u2026',
+  copy: '\u00A9',
+  reg: '\u00AE',
+  trade: '\u2122',
+}
+
+function decodeHtmlEntitiesOnce(text: string): string {
+  return text
+    .replace(/&([a-zA-Z]+);/g, (match, name: string) => {
+      const decoded = NAMED_HTML_ENTITIES[name.toLowerCase()]
+      return decoded ?? match
+    })
+    .replace(/&#(\d+);/g, (_, code: string) =>
+      String.fromCodePoint(Number(code))
+    )
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) =>
+      String.fromCodePoint(parseInt(code, 16))
+    )
+}
+
+/**
+ * Decode HTML entities, including double-encoded values like You&amp;#39;re.
+ * Safe to call on already-clean text.
+ */
+export function decodeHtmlEntities(text: string): string {
+  if (!text) return ''
+
+  let prev = text
+  let out = text
+
+  do {
+    prev = out
+    out = decodeHtmlEntitiesOnce(out)
+  } while (out !== prev)
+
+  return out
+}
+
 /**
  * Split stored email body text into display blocks.
  * Handles multi-line bodies and legacy single-line flattened content.
@@ -5,7 +56,7 @@
 export function splitEmailBodyIntoBlocks(text: string): string[] {
   if (!text?.trim()) return []
 
-  const normalized = text.replace(/\r\n/g, '\n').trim()
+  const normalized = decodeHtmlEntities(text).replace(/\r\n/g, '\n').trim()
 
   let blocks = normalized
     .split(/\n\s*\n/)

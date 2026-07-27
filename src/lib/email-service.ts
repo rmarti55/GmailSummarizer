@@ -1,4 +1,5 @@
 import { EmailContentParser } from './email-parser'
+import { decodeHtmlEntities } from './format-email-body'
 import type { GmailMessage, GmailMessagePart } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -66,10 +67,10 @@ export class EmailService {
       }
     } catch (bodyError) {
       console.warn(`[email-service] Failed to extract body for message ${message.id}:`, bodyError)
-      fullBody = message.snippet || ''
+      fullBody = decodeHtmlEntities(message.snippet || '')
     }
 
-    return fullBody || message.snippet || ''
+    return decodeHtmlEntities(fullBody || message.snippet || '')
   }
 
   static processGmailMessage(message: GmailMessage, userId: string): ProcessedEmail | null {
@@ -101,6 +102,66 @@ export class EmailService {
     return messages
       .map((message) => this.processGmailMessage(message, userId))
       .filter((email): email is ProcessedEmail => email !== null)
+  }
+
+  static async getExistingGmailIds(
+    supabase: Supabase,
+    gmailIds: string[],
+    userId: string
+  ): Promise<Set<string>> {
+    if (gmailIds.length === 0) {
+      return new Set()
+    }
+
+    const { data, error } = await supabase
+      .from('emails')
+      .select('gmail_id')
+      .eq('user_id', userId)
+      .in('gmail_id', gmailIds)
+
+    if (error) {
+      console.error('[email-service] Failed to lookup existing gmail_ids:', error)
+      return new Set()
+    }
+
+    return new Set(data?.map((row) => row.gmail_id) ?? [])
+  }
+
+  static async deleteEmailsByGmailIds(
+    supabase: Supabase,
+    gmailIds: string[],
+    userId: string
+  ): Promise<{ success: boolean; deletedCount?: number; error?: unknown }> {
+    if (gmailIds.length === 0) {
+      return { success: true, deletedCount: 0 }
+    }
+
+    try {
+      const BATCH_SIZE = 100
+      let deletedCount = 0
+
+      for (let i = 0; i < gmailIds.length; i += BATCH_SIZE) {
+        const batch = gmailIds.slice(i, i + BATCH_SIZE)
+        const { data, error } = await supabase
+          .from('emails')
+          .delete()
+          .in('gmail_id', batch)
+          .eq('user_id', userId)
+          .select('id')
+
+        if (error) {
+          console.error('[email-service] Failed to delete emails by gmail_id:', error)
+          return { success: false, error }
+        }
+
+        deletedCount += data?.length ?? 0
+      }
+
+      return { success: true, deletedCount }
+    } catch (error) {
+      console.error('[email-service] Unexpected delete by gmail_id error:', error)
+      return { success: false, error }
+    }
   }
 
   static async cleanupStaleEmails(

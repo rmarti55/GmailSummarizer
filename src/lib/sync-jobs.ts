@@ -15,6 +15,7 @@ export interface SyncJob {
   list_page_token: string | null
   message_ids: string[]
   processed_offset: number
+  history_id: string | null
   error: string | null
   created_at: string
   updated_at: string
@@ -47,6 +48,7 @@ function mapRow(row: Record<string, unknown>): SyncJob {
     list_page_token: (row.list_page_token as string | null) ?? null,
     message_ids: parseMessageIds(row.message_ids),
     processed_offset: row.processed_offset as number,
+    history_id: (row.history_id as string | null) ?? null,
     error: (row.error as string | null) ?? null,
     created_at: row.created_at as string,
     updated_at: row.updated_at as string,
@@ -141,6 +143,7 @@ export async function updateSyncJob(
       | 'list_page_token'
       | 'message_ids'
       | 'processed_offset'
+      | 'history_id'
       | 'error'
     >
   >
@@ -163,6 +166,35 @@ export async function updateSyncJob(
   }
 
   return mapRow(data)
+}
+
+export async function updateHistoryId(
+  supabase: Supabase,
+  userId: string,
+  historyId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('email_sync_jobs')
+    .upsert(
+      {
+        user_id: userId,
+        history_id: historyId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id', ignoreDuplicates: false }
+    )
+
+  if (error) {
+    console.error('[sync-jobs] Failed to update history_id:', error.message)
+  }
+}
+
+export async function getStoredHistoryId(
+  supabase: Supabase,
+  userId: string
+): Promise<string | null> {
+  const job = await getSyncJob(supabase, userId)
+  return job?.history_id ?? null
 }
 
 export async function failSyncJob(

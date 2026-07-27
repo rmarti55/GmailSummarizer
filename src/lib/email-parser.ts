@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { decodeHtmlEntities } from './format-email-body'
 
 const BLOCK_SELECTORS =
   'p, div, li, h1, h2, h3, h4, h5, h6, tr, blockquote, hr, section, article, header, footer, td, th, pre'
@@ -116,6 +117,6 @@ export class EmailContentParser {
     const coreMessage = this.extractCoreMessage(cleanText)
     const formattedText = this.formatForDisplay(coreMessage)
 
-    return formattedText
+    return decodeHtmlEntities(formattedText)
   }
 }

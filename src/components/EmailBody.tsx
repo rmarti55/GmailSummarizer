@@ -22,7 +22,7 @@ export function EmailBody({ text, className }: EmailBodyProps) {
   return (
     <div
       className={cn(
-        'max-w-prose text-sm text-muted-foreground leading-relaxed space-y-3',
+        'max-w-prose text-sm text-foreground leading-relaxed space-y-3',
         className
       )}
     >

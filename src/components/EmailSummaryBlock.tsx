@@ -32,9 +32,5 @@ export function EmailSummaryBlock({
     )
   }
 
-  return (
-    <div className={`bg-muted rounded-lg ${padding} border`}>
-      <span className="text-sm text-muted-foreground">No summary</span>
-    </div>
-  )
+  return null
 }
