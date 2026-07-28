@@ -6,12 +6,8 @@ import {
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ sender: string }> }
-) {
+export async function GET(request: NextRequest) {
   try {
-    const { sender } = await params
     const supabase = await createClient()
 
     const {
@@ -23,10 +19,9 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url)
-    const { page, limit } = parseSenderEmailsRequest(searchParams)
-    const senderEmail = decodeURIComponent(sender)
+    const { page, limit, sender } = parseSenderEmailsRequest(searchParams)
 
-    const result = await fetchSenderEmailsPage(supabase, user.id, senderEmail, page, limit)
+    const result = await fetchSenderEmailsPage(supabase, user.id, sender, page, limit)
     return NextResponse.json(result)
   } catch (error) {
     console.error('Sender emails API error:', error)

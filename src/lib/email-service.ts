@@ -1,5 +1,6 @@
 import { EmailContentParser } from './email-parser'
 import { decodeHtmlEntities } from './format-email-body'
+import { parseSenderFromHeader } from './sender-utils'
 import type { GmailMessage, GmailMessagePart } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -76,13 +77,13 @@ export class EmailService {
   static processGmailMessage(message: GmailMessage, userId: string): ProcessedEmail | null {
     try {
       const headers = message.payload?.headers || []
-      const sender = headers.find((h) => h.name === 'From')?.value || 'Unknown'
+      const fromHeader = headers.find((h) => h.name === 'From')?.value || ''
       const subject = headers.find((h) => h.name === 'Subject')?.value || 'No Subject'
       const fullBody = this.extractEmailBody(message)
 
       return {
         gmail_id: message.id,
-        sender: sender.includes('<') ? sender.split('<')[0].trim() : sender,
+        sender: parseSenderFromHeader(fromHeader),
         subject,
         body_preview: fullBody || message.snippet || '',
         user_id: userId,

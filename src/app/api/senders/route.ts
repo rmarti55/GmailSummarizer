@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { normalizeSenderStats } from '@/lib/sender-utils'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -34,19 +35,19 @@ export async function GET() {
         return acc
       }, {} as Record<string, number>)
 
-      const totalEmails = emails.length
-      const senders = Object.entries(senderCounts)
-        .map(([sender, count]) => ({
+      const senders = normalizeSenderStats(
+        Object.entries(senderCounts).map(([sender, count]) => ({
           sender,
           count,
-          percentage: totalEmails > 0 ? Math.round((count / totalEmails) * 100 * 10) / 10 : 0
         }))
-        .sort((a, b) => b.count - a.count)
+      )
 
       return NextResponse.json({ senders })
     }
 
-    return NextResponse.json({ senders: senderStats || [] })
+    return NextResponse.json({
+      senders: normalizeSenderStats(senderStats || []),
+    })
 
   } catch (error) {
     console.error('Senders API error:', error)

@@ -17,7 +17,7 @@ import { deleteEmailFromGmail, deleteEmailsFromGmail } from '@/lib/client-gmail-
 import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Email } from '@/types'
 
-type InboxSort = 'newest' | 'sender-asc' | 'sender-desc'
+type InboxSort = 'newest' | 'oldest' | 'sender-asc' | 'sender-desc'
 
 function buildListQueryParams(
   page: number,
@@ -40,6 +40,9 @@ function buildListQueryParams(
   } else if (sortMode === 'sender-desc') {
     params.set('sort', 'sender')
     params.set('order', 'desc')
+  } else if (sortMode === 'oldest') {
+    params.set('sort', 'date')
+    params.set('order', 'asc')
   } else {
     params.set('sort', 'date')
     params.set('order', 'desc')
@@ -374,6 +377,7 @@ export default function Dashboard() {
                 aria-label="Sort inbox"
               >
                 <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
                 <option value="sender-asc">Sender A–Z</option>
                 <option value="sender-desc">Sender Z–A</option>
               </select>

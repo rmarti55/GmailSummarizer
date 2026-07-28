@@ -11,6 +11,7 @@ import { EmailListRow } from '@/components/EmailListRow'
 import { EmailBulkActionBar } from '@/components/EmailBulkActionBar'
 import { PageSizeSelect, type PageSize } from '@/components/PageSizeSelect'
 import { Email } from '@/types'
+import { normalizeSenderForDisplay } from '@/lib/sender-utils'
 
 interface SenderStats {
   sender: string
@@ -102,6 +103,8 @@ export function ExpandableSenderCard({
     setSelectedIds(new Set())
   }
 
+  const displayName = normalizeSenderForDisplay(sender.sender)
+
   return (
     <Card className="overflow-hidden transition-all duration-300 ease-in-out hover:shadow-md">
       <div
@@ -113,7 +116,7 @@ export function ExpandableSenderCard({
             {rank}
           </div>
           <div>
-            <p className="font-medium text-foreground">{sender.sender}</p>
+            <p className="font-medium text-foreground">{displayName}</p>
             <p className="text-sm text-muted-foreground">
               {sender.percentage}% of total emails
             </p>
@@ -158,34 +161,8 @@ export function ExpandableSenderCard({
               </div>
             ) : (
               <>
-                <EmailBulkActionBar
-                  selectedCount={selectedIds.size}
-                  totalInView={emails.length}
-                  allSelected={allSelected}
-                  onSelectAllInView={handleSelectAllInView}
-                  onClearSelection={() => setSelectedIds(new Set())}
-                  onBulkDelete={handleBulkDelete}
-                  deleting={bulkDeleting}
-                  deleteProgress={bulkDeleteProgress ?? undefined}
-                />
-
-                <div className="rounded-md border overflow-hidden">
-                  {emails.map((email) => (
-                    <EmailListRow
-                      key={email.id}
-                      email={email}
-                      selected={selectedIds.has(email.id)}
-                      onSelectChange={handleSelectChange}
-                      onOpen={onOpenEmail}
-                      onDelete={(emailId) => onDeleteEmail(emailId, sender.sender)}
-                      deleting={deletingId === email.id}
-                      showSender={false}
-                    />
-                  ))}
-                </div>
-
                 {pagination && (
-                  <div className="flex flex-col gap-3 pt-4 mt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-3 pb-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm text-muted-foreground">
                       Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
                       {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
@@ -223,6 +200,32 @@ export function ExpandableSenderCard({
                     </div>
                   </div>
                 )}
+
+                <EmailBulkActionBar
+                  selectedCount={selectedIds.size}
+                  totalInView={emails.length}
+                  allSelected={allSelected}
+                  onSelectAllInView={handleSelectAllInView}
+                  onClearSelection={() => setSelectedIds(new Set())}
+                  onBulkDelete={handleBulkDelete}
+                  deleting={bulkDeleting}
+                  deleteProgress={bulkDeleteProgress ?? undefined}
+                />
+
+                <div className="rounded-md border overflow-hidden">
+                  {emails.map((email) => (
+                    <EmailListRow
+                      key={email.id}
+                      email={email}
+                      selected={selectedIds.has(email.id)}
+                      onSelectChange={handleSelectChange}
+                      onOpen={onOpenEmail}
+                      onDelete={(emailId) => onDeleteEmail(emailId, sender.sender)}
+                      deleting={deletingId === email.id}
+                      showSender={false}
+                    />
+                  ))}
+                </div>
               </>
             )}
           </CardContent>

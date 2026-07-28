@@ -8,6 +8,7 @@ import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
 import { EmailDetailSheet } from '@/components/EmailDetailSheet'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { deleteEmailFromGmail, deleteEmailsFromGmail } from '@/lib/client-gmail-delete'
+import { normalizeSenderForDisplay } from '@/lib/sender-utils'
 import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Mail, BarChart3 } from 'lucide-react'
 import { SenderStats, PaginationInfo, Email } from '@/types'
@@ -33,6 +34,7 @@ export default function SendersPage() {
   const [detailEmailId, setDetailEmailId] = useState<string | null>(null)
   const [detailSender, setDetailSender] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState<PageSize>(10)
+  const [totalEmailCount, setTotalEmailCount] = useState(0)
 
   const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
     setSenderEmails((prev) => {
@@ -55,7 +57,7 @@ export default function SendersPage() {
 
   const handleRefresh = async () => {
     await syncNewEmailsFromGmail()
-    fetchSenderStats()
+    await Promise.all([fetchSenderStats(), fetchEmailCount()])
   }
 
   const handleLogout = async () => {
@@ -103,6 +105,7 @@ export default function SendersPage() {
       if (response.ok) {
         setSenders([])
         setSenderEmails({})
+        setTotalEmailCount(0)
         setDetailEmailId(null)
         setDetailSender(null)
         alert('All emails cleared! Visit Dashboard to refresh and process emails.')
@@ -138,22 +141,35 @@ export default function SendersPage() {
     return null
   }
 
+  const fetchEmailCount = async () => {
+    try {
+      const response = await fetch('/api/gmail/count')
+      if (response.ok) {
+        const data = await response.json()
+        setTotalEmailCount(data.totalEmails)
+      }
+    } catch (error) {
+      console.error('Failed to fetch email count:', error)
+    }
+  }
+
   const fetchSenderEmails = async (sender: string, page: number = 1, limit: number = pageSize) => {
-    setSenderLoading((prev) => ({ ...prev, [sender]: true }))
+    const senderKey = normalizeSenderForDisplay(sender)
+    setSenderLoading((prev) => ({ ...prev, [senderKey]: true }))
     try {
       const response = await fetch(
-        `/api/senders/${encodeURIComponent(sender)}/emails?page=${page}&limit=${limit}`
+        `/api/senders/emails?sender=${encodeURIComponent(senderKey)}&page=${page}&limit=${limit}`
       )
       if (response.ok) {
         const data = await response.json()
         const emails = data.emails || []
         const pagination = data.pagination as PaginationInfo | undefined
-        setSenderEmails((prev) => ({ ...prev, [sender]: emails }))
+        setSenderEmails((prev) => ({ ...prev, [senderKey]: emails }))
         if (pagination) {
-          setSenderPagination((prev) => ({ ...prev, [sender]: pagination }))
+          setSenderPagination((prev) => ({ ...prev, [senderKey]: pagination }))
           setSenders((prev) =>
             prev.map((entry) =>
-              entry.sender === sender ? { ...entry, count: pagination.total } : entry
+              entry.sender === senderKey ? { ...entry, count: pagination.total } : entry
             )
           )
         }
@@ -163,7 +179,7 @@ export default function SendersPage() {
     } catch (error) {
       console.error('Failed to fetch sender emails:', error)
     }
-    setSenderLoading((prev) => ({ ...prev, [sender]: false }))
+    setSenderLoading((prev) => ({ ...prev, [senderKey]: false }))
   }
 
   const handleToggleExpand = async (sender: string) => {
@@ -201,27 +217,29 @@ export default function SendersPage() {
   }
 
   const afterSenderEmailsDeleted = async (emailIds: string[], senderName: string) => {
+    const senderKey = normalizeSenderForDisplay(senderName)
     const idSet = new Set(emailIds)
     if (detailEmailId && idSet.has(detailEmailId)) {
       setDetailEmailId(null)
       setDetailSender(null)
     }
 
-    const pagination = senderPagination[senderName]
+    const pagination = senderPagination[senderKey]
     const nextPage = pageAfterDelete(pagination, emailIds.length)
-    await fetchSenderEmails(senderName, nextPage, pageSize)
+    await fetchSenderEmails(senderKey, nextPage, pageSize)
 
     const nextSenders = await fetchSenderStats({ silent: true })
-    if (nextSenders && !nextSenders.some((entry) => entry.sender === senderName)) {
-      setExpandedSender((current) => (current === senderName ? null : current))
+    await fetchEmailCount()
+    if (nextSenders && !nextSenders.some((entry) => entry.sender === senderKey)) {
+      setExpandedSender((current) => (current === senderKey ? null : current))
       setSenderEmails((prev) => {
         const next = { ...prev }
-        delete next[senderName]
+        delete next[senderKey]
         return next
       })
       setSenderPagination((prev) => {
         const next = { ...prev }
-        delete next[senderName]
+        delete next[senderKey]
         return next
       })
     }
@@ -282,7 +300,7 @@ export default function SendersPage() {
   }
 
   useEffect(() => {
-    fetchSenderStats()
+    void Promise.all([fetchSenderStats(), fetchEmailCount()])
   }, [])
 
   return (
@@ -301,9 +319,16 @@ export default function SendersPage() {
             <BarChart3 className="w-6 h-6 text-primary" />
             <h2 className="text-2xl font-bold text-foreground">Email Senders Overview</h2>
           </div>
-          <p className="text-muted-foreground">
-            Ranked by email volume — open an email to read its summary and full message
-          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-muted-foreground">
+              Ranked by email volume — open an email to read its summary and full message
+            </p>
+            {totalEmailCount > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {totalEmailCount.toLocaleString()} total emails
+              </p>
+            )}
+          </div>
         </div>
 
         {loading ? (
