@@ -1,8 +1,15 @@
 import { clampPageSize } from '@/lib/page-size'
-import { getSenderQueryValues } from '@/lib/sender-utils'
+import { buildSenderEqOrFilter, getSenderQueryValues } from '@/lib/sender-utils'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 type Supabase = SupabaseClient
+
+function applySenderFilter<T extends { or: (filters: string) => T }>(
+  query: T,
+  senderValues: string[]
+): T {
+  return query.or(buildSenderEqOrFilter(senderValues))
+}
 
 export async function fetchSenderEmailsPage(
   supabase: Supabase,
@@ -14,23 +21,27 @@ export async function fetchSenderEmailsPage(
   const senderValues = getSenderQueryValues(displaySender)
   const offset = (page - 1) * limit
 
-  const { count: totalCount, error: countError } = await supabase
-    .from('emails')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .in('sender', senderValues)
+  const { count: totalCount, error: countError } = await applySenderFilter(
+    supabase
+      .from('emails')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId),
+    senderValues
+  )
 
   if (countError) {
     throw countError
   }
 
-  const { data: emails, error: emailsError } = await supabase
-    .from('emails')
-    .select('*')
-    .eq('user_id', userId)
-    .in('sender', senderValues)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+  const { data: emails, error: emailsError } = await applySenderFilter(
+    supabase
+      .from('emails')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1),
+    senderValues
+  )
 
   if (emailsError) {
     throw emailsError

@@ -21,6 +21,7 @@ interface EmailListRowProps {
   onSenderClick?: (sender: string) => void
   deleting?: boolean
   showSender?: boolean
+  compact?: boolean
 }
 
 export function EmailListRow({
@@ -32,6 +33,7 @@ export function EmailListRow({
   onSenderClick,
   deleting = false,
   showSender = true,
+  compact = false,
 }: EmailListRowProps) {
   return (
     <div
@@ -45,7 +47,8 @@ export function EmailListRow({
         }
       }}
       className={cn(
-        'group flex items-center gap-3 border-b px-3 py-2.5 text-left transition-colors hover:bg-accent/50',
+        'group flex items-center border-b text-left transition-colors hover:bg-accent/50',
+        compact ? 'gap-2 px-2 py-1' : 'gap-3 px-3 py-1.5',
         selected && 'bg-accent/40'
       )}
     >
@@ -100,10 +103,13 @@ export function EmailListRow({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 opacity-60 group-hover:opacity-100"
+              className={cn(
+                'p-0 opacity-60 group-hover:opacity-100',
+                compact ? 'h-5 w-5' : 'h-6 w-6'
+              )}
               aria-label="Email actions"
             >
-              <MoreHorizontal className="h-4 w-4" />
+              <MoreHorizontal className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

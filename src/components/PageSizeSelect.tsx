@@ -8,6 +8,7 @@ interface PageSizeSelectProps {
   onChange: (size: PageSize) => void
   className?: string
   id?: string
+  compact?: boolean
 }
 
 export function PageSizeSelect({
@@ -15,17 +16,27 @@ export function PageSizeSelect({
   onChange,
   className,
   id = 'page-size',
+  compact = false,
 }: PageSizeSelectProps) {
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      <label htmlFor={id} className="text-sm text-muted-foreground shrink-0">
+    <div className={cn('flex items-center', compact ? 'gap-1.5' : 'gap-2', className)}>
+      <label
+        htmlFor={id}
+        className={cn(
+          'text-muted-foreground shrink-0',
+          compact ? 'text-xs' : 'text-sm'
+        )}
+      >
         Show
       </label>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(Number(event.target.value) as PageSize)}
-        className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={cn(
+          'rounded-md border border-input bg-background shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          compact ? 'h-7 px-1.5 text-xs' : 'h-9 px-2 text-sm'
+        )}
         aria-label="Emails per page"
       >
         {PAGE_SIZE_OPTIONS.map((size) => (

@@ -108,7 +108,7 @@ export function ExpandableSenderCard({
   return (
     <Card className="overflow-hidden rounded-lg py-0 gap-0 shadow-none transition-colors hover:bg-accent/30">
       <div
-        className="flex items-center justify-between gap-3 py-2 px-3 cursor-pointer hover:bg-accent transition-colors"
+        className="flex items-center justify-between gap-3 py-1.5 px-3 cursor-pointer hover:bg-accent transition-colors"
         onClick={() => onToggleExpand(sender.sender)}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -138,13 +138,13 @@ export function ExpandableSenderCard({
       {isExpanded && (
         <div className="animate-in slide-in-from-top-2 duration-300">
           <Separator />
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             {loading ? (
               <div className="rounded-md border">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-3 border-b px-3 py-2.5 last:border-b-0"
+                    className="flex items-center gap-2 border-b px-2 py-1 last:border-b-0"
                   >
                     <Skeleton className="h-4 w-4 rounded" />
                     <Skeleton className="h-4 flex-1" />
@@ -162,56 +162,63 @@ export function ExpandableSenderCard({
               </div>
             ) : (
               <>
-                {pagination && (
-                  <div className="flex flex-col gap-3 pb-4 mb-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-                      {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                      {pagination.total} emails
+                <div className="mb-1.5 overflow-hidden rounded-md border bg-muted/40">
+                  {pagination && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1">
+                      <div className="text-xs text-muted-foreground">
+                        Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
+                        {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                        {pagination.total} emails
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <PageSizeSelect
+                          id={`sender-page-size-${rank}`}
+                          value={pageSize}
+                          onChange={handlePageSizeChange}
+                          compact
+                        />
+                        {pagination.totalPages > 1 && (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={!pagination.hasPrev}
+                              onClick={() => handlePageChange(pagination.page - 1)}
+                            >
+                              Previous
+                            </Button>
+                            <span className="text-xs text-muted-foreground">
+                              Page {pagination.page} of {pagination.totalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={!pagination.hasNext}
+                              onClick={() => handlePageChange(pagination.page + 1)}
+                            >
+                              Next
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <PageSizeSelect
-                        id={`sender-page-size-${rank}`}
-                        value={pageSize}
-                        onChange={handlePageSizeChange}
-                      />
-                      {pagination.totalPages > 1 && (
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!pagination.hasPrev}
-                            onClick={() => handlePageChange(pagination.page - 1)}
-                          >
-                            Previous
-                          </Button>
-                          <span className="text-sm text-muted-foreground">
-                            Page {pagination.page} of {pagination.totalPages}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={!pagination.hasNext}
-                            onClick={() => handlePageChange(pagination.page + 1)}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <EmailBulkActionBar
-                  selectedCount={selectedIds.size}
-                  totalInView={emails.length}
-                  allSelected={allSelected}
-                  onSelectAllInView={handleSelectAllInView}
-                  onClearSelection={() => setSelectedIds(new Set())}
-                  onBulkDelete={handleBulkDelete}
-                  deleting={bulkDeleting}
-                  deleteProgress={bulkDeleteProgress ?? undefined}
-                />
+                  )}
+                  {pagination && <Separator />}
+                  <EmailBulkActionBar
+                    selectedCount={selectedIds.size}
+                    totalInView={emails.length}
+                    allSelected={allSelected}
+                    onSelectAllInView={handleSelectAllInView}
+                    onClearSelection={() => setSelectedIds(new Set())}
+                    onBulkDelete={handleBulkDelete}
+                    deleting={bulkDeleting}
+                    deleteProgress={bulkDeleteProgress ?? undefined}
+                    compact
+                    embedded
+                  />
+                </div>
 
                 <div className="rounded-md border overflow-hidden">
                   {emails.map((email) => (
@@ -224,6 +231,7 @@ export function ExpandableSenderCard({
                       onDelete={(emailId) => onDeleteEmail(emailId, sender.sender)}
                       deleting={deletingId === email.id}
                       showSender={false}
+                      compact
                     />
                   ))}
                 </div>

@@ -6,6 +6,26 @@ export interface SenderStatsEntry {
   percentage: number
 }
 
+/** Remove a single RFC5322 quoted-string wrapper and unescape doubled quotes. */
+export function stripRfc5322Quotes(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1).replace(/""/g, '"')
+  }
+  return trimmed
+}
+
+/** Escape a value for PostgREST eq/or filters (always double-quoted). */
+export function escapePostgrestEqValue(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+/** Build a PostgREST or-filter matching sender against exact stored values. */
+export function buildSenderEqOrFilter(senderValues: string[]): string {
+  const unique = Array.from(new Set(senderValues))
+  return unique.map((value) => `sender.eq.${escapePostgrestEqValue(value)}`).join(',')
+}
+
 /** Parse a Gmail From header into a display-safe sender name. */
 export function parseSenderFromHeader(fromHeader: string): string {
   const trimmed = fromHeader.trim()
@@ -14,7 +34,7 @@ export function parseSenderFromHeader(fromHeader: string): string {
   }
 
   if (trimmed.includes('<')) {
-    const displayName = trimmed.split('<')[0].trim()
+    const displayName = stripRfc5322Quotes(trimmed.split('<')[0].trim())
     const emailMatch = trimmed.match(/<([^>]+)>/)
     const email = emailMatch?.[1]?.trim()
 
@@ -27,12 +47,12 @@ export function parseSenderFromHeader(fromHeader: string): string {
     return UNKNOWN_SENDER
   }
 
-  return trimmed
+  return stripRfc5322Quotes(trimmed)
 }
 
 /** Map blank or whitespace-only stored senders to a display label. */
 export function normalizeSenderForDisplay(sender: string | null | undefined): string {
-  const trimmed = (sender ?? '').trim()
+  const trimmed = stripRfc5322Quotes((sender ?? '').trim())
   return trimmed || UNKNOWN_SENDER
 }
 
@@ -42,7 +62,12 @@ export function getSenderQueryValues(displaySender: string): string[] {
   if (normalized === UNKNOWN_SENDER) {
     return ['', UNKNOWN_SENDER]
   }
-  return [normalized]
+
+  const values = new Set<string>()
+  values.add(normalized)
+  // Legacy rows may still store RFC5322-quoted display names.
+  values.add(`"${normalized}"`)
+  return Array.from(values)
 }
 
 /** Merge empty-string buckets into Unknown sender and recompute percentages. */
