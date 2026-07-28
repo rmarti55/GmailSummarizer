@@ -1,0 +1,27 @@
+---
+description: Deploy and database migration rules for Gmail Summarizer
+alwaysApply: true
+---
+
+# Deploy and database rules
+
+## Who deploys
+
+The user deploys from Cursor. The agent must **never** run `git push`, Vercel deploy, or `supabase db push` unless the user explicitly asks for the exact command to be shown or run.
+
+## Supabase vs Vercel
+
+- Vercel deploys the Next.js app only.
+- Supabase is a separate hosted database.
+- Files in `supabase/migrations/` do **not** apply automatically on Vercel deploy.
+
+## When adding database-dependent features
+
+1. Add a migration file under `supabase/migrations/`.
+2. Make the feature work **without** the migration when possible (read-time fallback, graceful degrade).
+3. Tell the user to run `npm run db:push` after deploy if migrations changed.
+4. Never document migrations as automatic on push or deploy.
+
+## Documentation
+
+Keep `README.md` and `SUPABASE_SETUP.md` aligned with the two-step deploy checklist: deploy app, then `db:push` if migrations changed.

@@ -9,7 +9,9 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "test": "npx --yes tsx --test src/lib/sync-cta.test.ts src/lib/sender-utils.test.ts src/lib/sender-classifier.test.ts src/lib/email-selection.test.ts"
+    "db:push": "supabase db push",
+    "test": "npx --yes tsx --test src/lib/sync-cta.test.ts src/lib/sender-utils.test.ts src/lib/sender-classifier.test.ts src/lib/email-selection.test.ts",
+    "verify:sender-expand": "npx --yes tsx scripts/verify-sender-expand.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

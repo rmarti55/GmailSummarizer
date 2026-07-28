@@ -4,6 +4,7 @@ export interface Email {
   id: string
   gmail_id: string
   sender: string
+  sender_key?: string
   from_email?: string | null
   from_domain?: string | null
   sender_kind?: SenderKind

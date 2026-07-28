@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { backfillSenderKindsForUser, countSendersByKind } from '@/lib/sender-backfill'
-import { classifyStoredSenderRow, normalizeSenderStats } from '@/lib/sender-utils'
+import { backfillSenderKeysForUser, backfillSenderKindsForUser, countSendersByKind } from '@/lib/sender-backfill'
+import { enrichSenderStats, normalizeSenderKey, normalizeSenderStats } from '@/lib/sender-utils'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -16,6 +16,7 @@ export async function GET() {
     }
 
     await backfillSenderKindsForUser(supabase, user.id)
+    await backfillSenderKeysForUser(supabase, user.id)
 
     const { data: senderStats, error: statsError } = await supabase.rpc('get_sender_statistics', {
       user_id: user.id,
@@ -26,7 +27,7 @@ export async function GET() {
 
       const { data: emails, error: emailsError } = await supabase
         .from('emails')
-        .select('sender, from_email, from_domain, sender_kind')
+        .select('sender, sender_key, from_email, from_domain, sender_kind')
         .eq('user_id', user.id)
 
       if (emailsError) {
@@ -35,49 +36,37 @@ export async function GET() {
 
       const senderBuckets = new Map<
         string,
-        { count: number; kindCounts: Map<'person' | 'organization' | 'unknown', number> }
+        {
+          count: number
+          kind?: string | null
+          from_email?: string | null
+          from_domain?: string | null
+        }
       >()
 
       for (const email of emails ?? []) {
-        const sender = email.sender
-        const classified = classifyStoredSenderRow({
-          sender,
-          from_email: email.from_email,
-          from_domain: email.from_domain,
-        })
-        const kind = email.sender_kind ?? classified.senderKind
-        const bucket = senderBuckets.get(sender) ?? {
-          count: 0,
-          kindCounts: new Map<'person' | 'organization' | 'unknown', number>(),
-        }
+        const bucketKey = normalizeSenderKey(email.sender_key ?? email.sender)
+        const bucket = senderBuckets.get(bucketKey) ?? { count: 0, kind: email.sender_kind }
         bucket.count += 1
-        bucket.kindCounts.set(kind, (bucket.kindCounts.get(kind) ?? 0) + 1)
-        senderBuckets.set(sender, bucket)
+        bucket.kind = email.sender_kind ?? bucket.kind
+        bucket.from_email = bucket.from_email ?? email.from_email
+        bucket.from_domain = bucket.from_domain ?? email.from_domain
+        senderBuckets.set(bucketKey, bucket)
       }
 
       const totalEmails = emails?.length ?? 0
-      const senders = normalizeSenderStats(
-        Array.from(senderBuckets.entries()).map(([sender, bucket]) => {
-          let winner: 'person' | 'organization' | 'unknown' = 'unknown'
-          let winnerCount = -1
-          for (const kind of ['person', 'organization', 'unknown'] as const) {
-            const count = bucket.kindCounts.get(kind) ?? 0
-            if (count > winnerCount) {
-              winner = kind
-              winnerCount = count
-            }
-          }
-
-          return {
+      const senders = enrichSenderStats(
+        normalizeSenderStats(
+          Array.from(senderBuckets.entries()).map(([sender, bucket]) => ({
             sender,
             count: bucket.count,
             percentage:
               totalEmails > 0
                 ? Math.round((bucket.count / totalEmails) * 100 * 10) / 10
                 : 0,
-            kind: winner,
-          }
-        })
+            kind: bucket.kind,
+          }))
+        )
       )
 
       return NextResponse.json({
@@ -86,7 +75,7 @@ export async function GET() {
       })
     }
 
-    const senders = normalizeSenderStats(senderStats || [])
+    const senders = enrichSenderStats(normalizeSenderStats(senderStats || []))
 
     return NextResponse.json({
       senders,

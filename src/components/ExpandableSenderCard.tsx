@@ -37,6 +37,7 @@ interface ExpandableSenderCardProps {
   emails: Email[]
   pagination: PaginationInfo | null
   loading: boolean
+  fetchError?: boolean
   onPageChange: (sender: string, page: number) => void
   onPageSizeChange: (sender: string, pageSize: PageSize) => void
   pageSize: number
@@ -56,6 +57,7 @@ export function ExpandableSenderCard({
   emails,
   pagination,
   loading,
+  fetchError = false,
   onPageChange,
   onPageSizeChange,
   pageSize,
@@ -169,6 +171,14 @@ export function ExpandableSenderCard({
                     <Skeleton className="h-4 w-16" />
                   </div>
                 ))}
+              </div>
+            ) : fetchError ? (
+              <div className="text-center py-8">
+                <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">Could not load emails</h3>
+                <p className="text-muted-foreground">
+                  Try collapsing and expanding this sender again
+                </p>
               </div>
             ) : emails.length === 0 ? (
               <div className="text-center py-8">

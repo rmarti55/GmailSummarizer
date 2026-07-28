@@ -2,157 +2,384 @@
 
 ## Overview
 
-The Gmail Summarizer API provides endpoints for Gmail integration, AI-powered email classification, adaptive summarization, and user management. All endpoints require authentication except for the OAuth callback.
+The Gmail Summarizer API provides endpoints for Gmail sync, on-demand summarization, sender analytics, and session management.
+
+All endpoints except `/api/auth/callback` and `/api/auth/signin` require an authenticated Supabase session. The browser sends session cookies automatically — no `Authorization: Bearer` header is needed for same-origin fetch calls from the app.
 
 ## Authentication
 
-All API routes (except `/api/auth/callback`) require a valid Supabase session with Google OAuth provider token.
+Session-based auth via Supabase SSR cookies. Server routes call `supabase.auth.getUser()` and return `401` if unauthenticated.
 
-**Headers Required:**
-```
-Authorization: Bearer <supabase-session-token>
-```
+**Sign-in flow:**
+1. Browser navigates to `GET /api/auth/signin`
+2. User completes Google OAuth via Supabase
+3. Supabase redirects to `GET /api/auth/callback?code=...`
+4. Callback exchanges code, persists Google tokens, redirects to dashboard
 
-## Endpoints
+---
 
-### 1. Gmail Integration
+## Gmail Sync
 
-#### `GET /api/gmail`
-Fetches and processes emails from the user's Gmail inbox with advanced content parsing.
+### `GET /api/gmail`
 
-#### `GET /api/gmail/count`
-Gets email count and pagination data for the authenticated user.
-
-**Query Parameters:**
-- `limit` (optional) - Number of emails to return (if > 0, returns paginated emails)
-- `offset` (optional) - Offset for pagination
-
-**Response (count mode):**
-```json
-{
-  "totalEmails": 42,
-  "lastSyncTime": "2024-01-15T10:30:00Z"
-}
-```
-
-**Response (pagination mode):**
-```json
-{
-  "emails": [...]
-}
-```
-
-#### `GET /api/gmail/sync-status`
-Gets the current synchronization status.
-
-#### `POST /api/gmail/sync-status`
-Updates the synchronization status.
-
-#### `POST /api/gmail/full-sync`
-Initiates a full synchronization of all Gmail messages.
-
-**Features:**
-- Fetches up to 20 recent inbox emails
-- Advanced HTML parsing with Cheerio for clean text extraction
-- Removes reply chains, signatures, and malformed content
-- Stores emails in database with deduplication
+Runs incremental inbox sync — fetches up to 100 messages newer than the latest stored email.
 
 **Response:**
 ```json
 {
-  "emails": [
-    {
-      "id": "uuid",
-      "gmail_id": "string",
-      "sender": "string",
-      "subject": "string", 
-      "body_preview": "string",
-      "created_at": "timestamp",
-      "user_id": "uuid",
-      "read": false,
-      "summary": null,
-      "email_type": null,
-      "urgency_level": null,
-      "action_required": null,
-      "classification_confidence": null,
-      "estimated_read_time": null
-    }
-  ]
+  "syncedCount": 12,
+  "prunedCount": 0,
+  "message": "Synced 12 new emails"
 }
 ```
 
-**Error Responses:**
-- `401` - Unauthorized (no session)
-- `400` - No Google access token found
-- `500` - Gmail API error
+**Errors:** `401` unauthorized, `400`/`502` Gmail token issues, `500` sync failure
 
 ---
 
-### 2. AI Summarization
+### `GET /api/gmail/count`
 
-#### `POST /api/summarize`
-Generates adaptive AI summary with email classification using Groq API.
+Returns email count, or paginated emails when `limit > 0`.
 
-**Request Body:**
+**Query parameters:**
+| Param | Default | Description |
+|-------|---------|-------------|
+| `limit` | `0` | If > 0, returns emails instead of count |
+| `offset` | `0` | Pagination offset (with `limit`) |
+| `sender` | — | Filter by sender display name |
+| `sort` | `date` | `date` or `sender` |
+| `order` | `desc` (date) / `asc` (sender) | Sort direction |
+
+**Count response:**
+```json
+{
+  "totalEmails": 698,
+  "lastSyncTime": "2026-07-28T12:00:00.000Z"
+}
+```
+
+**Pagination response (`limit > 0`):**
+```json
+{
+  "emails": [ /* email rows */ ]
+}
+```
+
+---
+
+### `GET /api/gmail/sync-status`
+
+Returns durable full-sync job progress from `email_sync_jobs`.
+
+**Response:**
+```json
+{
+  "current": 450,
+  "total": 698,
+  "isRunning": true,
+  "status": "running",
+  "phase": "processing",
+  "error": null,
+  "updatedAt": "2026-07-28T12:00:00.000Z"
+}
+```
+
+When `status` is `completed`, the endpoint returns the completed progress once then resets the job to idle.
+
+**Idle response:**
+```json
+{
+  "current": 0,
+  "total": 0,
+  "isRunning": false,
+  "status": "idle"
+}
+```
+
+---
+
+### `POST /api/gmail/full-sync`
+
+Runs one chunk of resumable full inbox sync (safe for Vercel serverless, `maxDuration: 60`).
+
+**Response (in progress):**
+```json
+{
+  "message": "Full sync in progress",
+  "status": "running",
+  "progress": {
+    "current": 200,
+    "total": 698,
+    "isRunning": true,
+    "status": "running",
+    "phase": "processing"
+  }
+}
+```
+
+**Response (complete):**
+```json
+{
+  "message": "Full sync complete",
+  "status": "completed",
+  "progress": { "current": 698, "total": 698, "isRunning": false, "status": "completed" }
+}
+```
+
+Poll `GET /api/gmail/sync-status` between chunks, or call `POST` repeatedly until `status: "completed"`.
+
+---
+
+### `GET /api/gmail/connection-status`
+
+Checks Gmail token health without triggering a sync.
+
+**Connected:**
+```json
+{
+  "connected": true,
+  "lastChecked": "2026-07-28T12:00:00.000Z"
+}
+```
+
+**Disconnected:**
+```json
+{
+  "connected": false,
+  "error": "Gmail permission missing — reconnect to grant access",
+  "code": "missing_scopes",
+  "lastChecked": "2026-07-28T12:00:00.000Z",
+  "needsReauth": true
+}
+```
+
+Possible `code` values: `missing_scopes`, token refresh failures, etc.
+
+---
+
+## Email Management
+
+### `DELETE /api/gmail/emails/[id]`
+
+Trashes the email in Gmail and removes it from the local cache.
+
+**Response:**
+```json
+{ "success": true }
+```
+
+**Errors:** `404` email not found, `502` Gmail trash failed
+
+---
+
+### `POST /api/gmail/emails/batch-delete`
+
+Trashes up to 100 emails in Gmail and removes from cache.
+
+**Request body:**
+```json
+{
+  "ids": ["uuid-1", "uuid-2"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "deletedIds": ["uuid-1", "uuid-2"],
+  "failedIds": []
+}
+```
+
+**Errors:** `400` empty or >100 IDs, `404` no matching emails, `502` Gmail batch trash failed
+
+---
+
+## Summarization
+
+### `POST /api/summarize`
+
+Generates a one-sentence summary via OpenRouter and saves it to `emails.summary`.
+
+**Request body:**
 ```json
 {
   "emailId": "uuid"
 }
 ```
 
-**AI Processing Pipeline:**
-1. **Classification**: Categorizes email into 5 types with confidence scoring
-2. **Template Selection**: Chooses specialized AI prompt based on classification  
-3. **AI Generation**: Uses Groq API with OpenAI GPT-OSS-120B model
-4. **Post-processing**: Formats summary for optimal readability
+**Response:**
+```json
+{
+  "summary": "John asks you to review the Q3 budget proposal by Friday."
+}
+```
 
-**Email Classification Types:**
-- `critical_action` - Security alerts, urgent requests (High priority, 30s read time)
-- `quick_action` - Meeting requests, approvals (Medium priority, 15s read time)  
-- `fyi_update` - Notifications, status updates (Low priority, 20s read time)
-- `commercial` - Marketing, promotions (Low priority, 10s read time)
-- `complex_content` - Long-form content (Medium priority, 60s read time)
+Returns cached summary immediately if one already exists. Does **not** populate `email_type` or other legacy classification columns.
+
+**Errors:**
+- `400` — missing `emailId`
+- `404` — email not found
+- `503` — `OPENROUTER_API_KEY` not configured or `DISABLE_SUMMARIZATION=true`
+- `500` — OpenRouter or database error
+
+**Environment:**
+- `OPENROUTER_API_KEY` — required
+- `SUMMARIZE_MODEL` — optional, default `google/gemini-2.5-flash-lite`
+- `DISABLE_SUMMARIZATION=true` — blocks all summarize calls
+
+---
+
+## Senders
+
+### `GET /api/senders`
+
+Returns sender statistics with People/Organizations counts.
 
 **Response:**
 ```json
 {
-  "summary": "string",
-  "classification": {
-    "type": "critical_action",
-    "confidence": 0.9,
-    "urgencyLevel": "high",
-    "actionRequired": true,
-    "estimatedReadTime": 30
+  "senders": [
+    {
+      "sender": "alice@company.com",
+      "count": 42,
+      "percentage": 6.0,
+      "kind": "person"
+    }
+  ],
+  "counts": {
+    "all": 698,
+    "person": 120,
+    "organization": 450,
+    "unknown": 128
   }
 }
 ```
 
-**Error Responses:**
-- `401` - Unauthorized
-- `400` - Missing emailId
-- `404` - Email not found
-- `500` - AI service error
+Triggers read-time backfill of `sender_kind` and `sender_key` when needed. Falls back to client-side aggregation if the RPC is unavailable.
 
 ---
 
-### 3. Data Management
+### `GET /api/senders/emails`
 
-#### `POST /api/clear-summaries`
-Clears all AI-generated summaries for the authenticated user while preserving emails.
+Paginated emails for a sender (query param variant).
 
-**Use Case:** Regenerate summaries with updated AI models or templates
+**Query parameters:**
+| Param | Default | Description |
+|-------|---------|-------------|
+| `sender` | required | Sender display name or email |
+| `page` | `1` | Page number |
+| `limit` | `100` | Page size (clamped to 10, 20, 50, or 100) |
 
 **Response:**
 ```json
 {
-  "message": "All summaries cleared successfully"
+  "emails": [ /* email rows */ ],
+  "pagination": {
+    "page": 1,
+    "limit": 100,
+    "total": 42,
+    "totalPages": 1,
+    "hasNext": false,
+    "hasPrev": false
+  }
 }
 ```
 
-#### `POST /api/clear-emails`
-Removes all cached emails for the authenticated user.
+---
 
-**Use Case:** Fresh email processing with improved parsing algorithms
+### `GET /api/senders/[sender]/emails`
+
+Same as above with sender URL-encoded in the path.
+
+**Query parameters:** `page` (default `1`), `limit` (default `100`)
+
+---
+
+## Analytics
+
+### `GET /api/insights`
+
+Analyzes the last 500 emails for volume patterns.
+
+**Response:**
+```json
+{
+  "analytics": {
+    "peakHour": "9:00 AM",
+    "peakDay": "Tuesday",
+    "totalAnalyzed": 500,
+    "avgPerDay": 17,
+    "topSenders": [
+      { "sender": "news@company.com", "count": 45, "percentage": 9.0 }
+    ],
+    "emailTypes": {
+      "unclassified": 500
+    }
+  }
+}
+```
+
+`emailTypes` reads legacy `email_type` column — typically all `unclassified` since summarize does not populate it.
+
+---
+
+### `GET /api/intelligence`
+
+Keyword-heuristic analysis for a time period.
+
+**Query parameters:**
+| Param | Default | Options |
+|-------|---------|---------|
+| `period` | `24h` | `24h`, `week`, `month` |
+
+**Response:**
+```json
+{
+  "period": "24h",
+  "totalEmails": 15,
+  "actionItems": [
+    {
+      "id": "uuid",
+      "subject": "Budget review needed",
+      "sender": "boss@company.com",
+      "urgency": "high",
+      "timeAgo": "2h ago",
+      "reason": "Has deadline mentioned"
+    }
+  ],
+  "themes": [
+    { "name": "Work & Projects", "count": 8, "percentage": 53, "description": "Project updates and work tasks" }
+  ],
+  "patterns": [
+    { "type": "volume", "description": "Significantly higher email volume than usual", "change": "increase", "percentage": 45 }
+  ],
+  "comparison": {
+    "volumeChange": 45,
+    "newSenders": 2
+  }
+}
+```
+
+---
+
+## Data Management
+
+### `POST /api/clear-summaries`
+
+Clears all `summary` fields for the authenticated user. Emails are preserved.
+
+**Response:**
+```json
+{ "message": "All summaries cleared successfully" }
+```
+
+---
+
+### `POST /api/clear-emails`
+
+Deletes all cached emails for the authenticated user.
 
 **Response:**
 ```json
@@ -164,130 +391,133 @@ Removes all cached emails for the authenticated user.
 
 ---
 
-### 4. Sender Management
+## Authentication
 
-#### `GET /api/senders`
-Gets sender statistics with email counts and percentages.
+### `GET /api/auth/signin`
+
+Starts Google OAuth flow. Redirects to Google consent screen.
+
+**Query parameters:**
+| Param | Description |
+|-------|-------------|
+| `redirectTo` | Path to redirect after login (default `/`) |
+| `consent=true` | Force consent screen (useful for re-granting Gmail scope) |
+
+Requests scopes: `openid email profile https://mail.google.com/` with offline access.
+
+---
+
+### `GET /api/auth/callback`
+
+Handles Supabase OAuth callback. Not called directly — Supabase redirects here after Google auth.
+
+On success: persists Google tokens to `gmail_credentials`, verifies Gmail scope, redirects to app.
+
+On failure redirects to `/login?error=...`:
+- `gmail_scope_missing` — Gmail scope not granted
+- `gmail_refresh_missing` — no durable refresh token
+- `gmail_connection_failed` — token save or verification failed
+- `oauth_failed` — general OAuth failure
+
+---
+
+### `POST /api/auth/signout`
+
+Signs out the current user.
 
 **Response:**
 ```json
-{
-  "senders": [
-    {
-      "sender": "example@domain.com",
-      "count": 15,
-      "percentage": 35.7
-    }
-  ]
-}
-```
-
-#### `GET /api/senders/[sender]/emails`
-Gets paginated emails from a specific sender.
-
-**Query Parameters:**
-- `page` (optional) - Page number (default: 1)
-- `limit` (optional) - Items per page (default: 10)
-
-**Response:**
-```json
-{
-  "emails": [...],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 25,
-    "totalPages": 3,
-    "hasNext": true,
-    "hasPrev": false
-  }
-}
+{ "success": true }
 ```
 
 ---
 
-### 5. Authentication
+## Error Format
 
-#### `GET /api/auth/callback`
-Handles Google OAuth callback after user authentication.
+All endpoints return consistent error shapes:
 
-**Query Parameters:**
-- `code` - Authorization code from Google
-- `state` - CSRF protection state parameter
-
-**Process:**
-1. Exchanges authorization code for access/refresh tokens
-2. Creates/updates user session in Supabase
-3. Redirects to dashboard
-
-#### `POST /api/auth/signout`
-Signs out the authenticated user and clears session.
-
-**Response:**
 ```json
 {
-  "message": "Signed out successfully"
+  "error": "Human-readable message",
+  "details": "optional additional context"
 }
 ```
+
+**Common status codes:**
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `400` | Bad request (missing params) |
+| `401` | Unauthorized (no session) |
+| `404` | Resource not found |
+| `502` | Gmail API failure |
+| `503` | Summarization disabled or misconfigured |
+| `500` | Internal server error |
 
 ---
-
-## Error Handling
-
-All endpoints return consistent error formats:
-
-```json
-{
-  "error": "string",
-  "details": "object|string" // Optional additional context
-}
-```
-
-**Common HTTP Status Codes:**
-- `200` - Success
-- `400` - Bad Request (missing parameters, invalid data)
-- `401` - Unauthorized (no session or invalid token)
-- `404` - Not Found (resource doesn't exist)
-- `500` - Internal Server Error (database, AI service, or Gmail API errors)
-
-## Rate Limiting
-
-- **Gmail API**: Subject to Google's rate limits (250 quota units per user per 100 seconds)
-- **Groq API**: Subject to Groq's rate limits (varies by plan)
-- **Database**: No explicit limits (Supabase handles scaling)
-
-## Security
-
-- **Row Level Security (RLS)**: All database operations are scoped to the authenticated user
-- **Token Validation**: Every request validates Supabase session
-- **Provider Tokens**: Google tokens are encrypted and stored securely
-- **CORS**: Configured for same-origin requests only
 
 ## Usage Examples
 
-### Fetch and Summarize Workflow
-```javascript
-// 1. Fetch emails
-const emailsResponse = await fetch('/api/gmail');
-const { emails } = await emailsResponse.json();
+### Sync and load emails
 
-// 2. Summarize first email
-const summarizeResponse = await fetch('/api/summarize', {
+```javascript
+// Incremental sync
+await fetch('/api/gmail');
+
+// Load paginated emails for dashboard
+const res = await fetch('/api/gmail/count?limit=50&offset=0&sort=date&order=desc');
+const { emails } = await res.json();
+```
+
+### Full sync with progress
+
+```javascript
+// Start/resume full sync (call until status is completed)
+let done = false;
+while (!done) {
+  const res = await fetch('/api/gmail/full-sync', { method: 'POST' });
+  const data = await res.json();
+  done = data.status === 'completed';
+  console.log(data.progress);
+}
+
+// Or poll sync-status separately
+const status = await fetch('/api/gmail/sync-status');
+const progress = await status.json();
+```
+
+### Summarize an email
+
+```javascript
+const res = await fetch('/api/summarize', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ emailId: emails[0].id })
+  body: JSON.stringify({ emailId: 'uuid-here' }),
 });
-const { summary } = await summarizeResponse.json();
+const { summary } = await res.json();
 ```
 
-### Clear and Refresh Data
+### Check Gmail connection
+
 ```javascript
-// Clear all summaries for regeneration
-await fetch('/api/clear-summaries', { method: 'POST' });
-
-// Clear all emails for fresh processing  
-await fetch('/api/clear-emails', { method: 'POST' });
-
-// Fetch fresh emails
-await fetch('/api/gmail');
+const res = await fetch('/api/gmail/connection-status');
+const { connected, needsReauth, code } = await res.json();
+if (!connected && needsReauth) {
+  window.location.href = '/api/auth/signin?consent=true';
+}
 ```
+
+---
+
+## Rate Limits
+
+- **Gmail API**: Google's per-user quota (250 quota units per 100 seconds)
+- **OpenRouter**: Per your OpenRouter plan
+- **Supabase**: Handled by Supabase scaling
+
+## Security
+
+- **Row Level Security**: All email and sync job queries scoped to authenticated user
+- **Credential vault**: Google tokens stored in `gmail_credentials`; browser clients cannot access
+- **Session cookies**: HttpOnly cookies managed by Supabase SSR
+- **Same-origin**: API routes intended for same-origin browser requests with session cookies

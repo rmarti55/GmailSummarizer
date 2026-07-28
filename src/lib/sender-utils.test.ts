@@ -5,7 +5,10 @@ import {
   buildSenderEqOrFilter,
   escapePostgrestEqValue,
   getSenderQueryValues,
+  enrichSenderKind,
+  enrichSenderStats,
   normalizeSenderForDisplay,
+  normalizeSenderKey,
   normalizeSenderStats,
   parseSenderFromHeader,
   stripRfc5322Quotes,
@@ -50,6 +53,16 @@ describe('parseSenderFromHeader', () => {
   it('maps empty headers to Unknown sender', () => {
     assert.equal(parseSenderFromHeader(''), UNKNOWN_SENDER)
     assert.equal(parseSenderFromHeader('   '), UNKNOWN_SENDER)
+  })
+})
+
+describe('normalizeSenderKey', () => {
+  it('folds curly apostrophes to ASCII', () => {
+    assert.equal(normalizeSenderKey('Levi\u2019s'), "Levi's")
+  })
+
+  it('strips RFC5322 quotes before normalizing', () => {
+    assert.equal(normalizeSenderKey('"AT&T Online Services"'), 'AT&T Online Services')
   })
 })
 
@@ -135,5 +148,31 @@ describe('normalizeSenderStats', () => {
 
     assert.equal(stats.length, 1)
     assert.equal(stats[0]?.kind, 'organization')
+  })
+})
+
+describe('enrichSenderKind', () => {
+  it('keeps confident DB kinds', () => {
+    assert.equal(enrichSenderKind('Mayowa Tomori', 'person'), 'person')
+    assert.equal(enrichSenderKind('Etsy', 'organization'), 'organization')
+  })
+
+  it('classifies from display name when DB kind is missing or unknown', () => {
+    assert.equal(enrichSenderKind('Mayowa Tomori', null), 'person')
+    assert.equal(enrichSenderKind('Mayowa Tomori', 'unknown'), 'person')
+    assert.equal(enrichSenderKind('City of Santa Fe Public Records', null), 'organization')
+    assert.equal(enrichSenderKind('noreply@yourmortgageonline.com', null), 'organization')
+  })
+})
+
+describe('enrichSenderStats', () => {
+  it('fills in kinds for unknown sender stats', () => {
+    const stats = enrichSenderStats([
+      { sender: 'Mayowa Tomori', count: 35, percentage: 1.8, kind: 'unknown' },
+      { sender: 'City of Santa Fe', count: 7, percentage: 0.4, kind: 'unknown' },
+    ])
+
+    assert.equal(stats[0]?.kind, 'person')
+    assert.equal(stats[1]?.kind, 'organization')
   })
 })

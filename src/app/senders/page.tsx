@@ -37,6 +37,7 @@ export default function SendersPage() {
   const [senderEmails, setSenderEmails] = useState<Record<string, Email[]>>({})
   const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
+  const [senderFetchError, setSenderFetchError] = useState<Record<string, boolean>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
@@ -179,7 +180,9 @@ export default function SendersPage() {
 
   const fetchSenderEmails = async (sender: string, page: number = 1, limit: number = pageSize) => {
     const senderKey = normalizeSenderForDisplay(sender)
+    const expectedCount = senders.find((entry) => entry.sender === senderKey)?.count ?? 0
     setSenderLoading((prev) => ({ ...prev, [senderKey]: true }))
+    setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
     try {
       const response = await fetch(
         `/api/senders/emails?sender=${encodeURIComponent(senderKey)}&page=${page}&limit=${limit}`
@@ -188,20 +191,34 @@ export default function SendersPage() {
         const data = await response.json()
         const emails = data.emails || []
         const pagination = data.pagination as PaginationInfo | undefined
-        setSenderEmails((prev) => ({ ...prev, [senderKey]: emails }))
+        const total = pagination?.total ?? 0
+        const fetchMismatch = expectedCount > 0 && total === 0
+
+        if (!fetchMismatch) {
+          setSenderEmails((prev) => ({ ...prev, [senderKey]: emails }))
+        }
+
         if (pagination) {
           setSenderPagination((prev) => ({ ...prev, [senderKey]: pagination }))
-          setSenders((prev) =>
-            prev.map((entry) =>
-              entry.sender === senderKey ? { ...entry, count: pagination.total } : entry
+          if (total > 0) {
+            setSenders((prev) =>
+              prev.map((entry) =>
+                entry.sender === senderKey ? { ...entry, count: total } : entry
+              )
             )
-          )
+          }
+        }
+
+        if (fetchMismatch) {
+          setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
         }
       } else {
         console.error('Failed to fetch sender emails')
+        setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
       }
     } catch (error) {
       console.error('Failed to fetch sender emails:', error)
+      setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
     }
     setSenderLoading((prev) => ({ ...prev, [senderKey]: false }))
   }
@@ -213,8 +230,11 @@ export default function SendersPage() {
       setExpandedSender(sender)
       const cachedEmails = senderEmails[sender]
       const senderStats = senders.find((entry) => entry.sender === sender)
+      const hadFetchError = senderFetchError[sender]
       const needsFetch =
-        !cachedEmails || (cachedEmails.length === 0 && (senderStats?.count ?? 0) > 0)
+        hadFetchError ||
+        !cachedEmails ||
+        (cachedEmails.length === 0 && (senderStats?.count ?? 0) > 0)
       if (needsFetch) {
         await fetchSenderEmails(sender, 1)
       }
@@ -424,6 +444,7 @@ export default function SendersPage() {
                 emails={senderEmails[sender.sender] || []}
                 pagination={senderPagination[sender.sender] || null}
                 loading={senderLoading[sender.sender] || false}
+                fetchError={senderFetchError[sender.sender] || false}
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 pageSize={pageSize}

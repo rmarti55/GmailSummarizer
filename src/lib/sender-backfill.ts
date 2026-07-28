@@ -1,7 +1,98 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { classifyStoredSenderRow } from '@/lib/sender-utils'
+import { classifyStoredSenderRow, normalizeSenderKey } from '@/lib/sender-utils'
 
 const BACKFILL_BATCH_SIZE = 250
+
+let loggedMissingColumn = false
+let loggedMissingSenderKey = false
+
+function isMissingSenderKindColumn(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false
+  const message = error.message?.toLowerCase() ?? ''
+  return (
+    error.code === '42703' ||
+    message.includes('sender_kind') ||
+    message.includes('from_email') ||
+    message.includes('from_domain')
+  )
+}
+
+function isMissingSenderKeyColumn(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false
+  const message = error.message?.toLowerCase() ?? ''
+  return error.code === '42703' || message.includes('sender_key')
+}
+
+export async function backfillSenderKeysForUser(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<number> {
+  let updatedCount = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('emails')
+      .select('id, sender, sender_key')
+      .eq('user_id', userId)
+      .is('sender_key', null)
+      .limit(BACKFILL_BATCH_SIZE)
+
+    if (error) {
+      if (isMissingSenderKeyColumn(error)) {
+        if (!loggedMissingSenderKey) {
+          console.warn(
+            '[sender-backfill] sender_key column missing; skipping key backfill until migration is applied'
+          )
+          loggedMissingSenderKey = true
+        }
+      } else {
+        console.error('[sender-backfill] Failed to fetch rows for sender_key:', error)
+      }
+      break
+    }
+
+    if (!data?.length) {
+      break
+    }
+
+    const updates = data.map((row) => ({
+      id: row.id,
+      sender_key: normalizeSenderKey(row.sender),
+    }))
+
+    const updateResults = await Promise.all(
+      updates.map((update) =>
+        supabase
+          .from('emails')
+          .update({ sender_key: update.sender_key })
+          .eq('id', update.id)
+          .eq('user_id', userId)
+      )
+    )
+
+    const failedUpdate = updateResults.find((result) => result.error)
+    if (failedUpdate?.error) {
+      if (isMissingSenderKeyColumn(failedUpdate.error)) {
+        if (!loggedMissingSenderKey) {
+          console.warn(
+            '[sender-backfill] sender_key column missing; skipping key backfill until migration is applied'
+          )
+          loggedMissingSenderKey = true
+        }
+      } else {
+        console.error('[sender-backfill] Failed to update sender_key rows:', failedUpdate.error)
+      }
+      break
+    }
+
+    updatedCount += updates.length
+    if (data.length < BACKFILL_BATCH_SIZE) {
+      break
+    }
+  }
+
+  return updatedCount
+}
 
 export async function backfillSenderKindsForUser(
   supabase: SupabaseClient,
@@ -18,7 +109,16 @@ export async function backfillSenderKindsForUser(
       .limit(BACKFILL_BATCH_SIZE)
 
     if (error) {
-      console.error('[sender-backfill] Failed to fetch rows:', error)
+      if (isMissingSenderKindColumn(error)) {
+        if (!loggedMissingColumn) {
+          console.warn(
+            '[sender-backfill] sender_kind columns missing; skipping DB backfill until migration is applied'
+          )
+          loggedMissingColumn = true
+        }
+      } else {
+        console.error('[sender-backfill] Failed to fetch rows:', error)
+      }
       break
     }
 
@@ -57,7 +157,16 @@ export async function backfillSenderKindsForUser(
 
     const failedUpdate = updateResults.find((result) => result.error)
     if (failedUpdate?.error) {
-      console.error('[sender-backfill] Failed to update rows:', failedUpdate.error)
+      if (isMissingSenderKindColumn(failedUpdate.error)) {
+        if (!loggedMissingColumn) {
+          console.warn(
+            '[sender-backfill] sender_kind columns missing; skipping DB backfill until migration is applied'
+          )
+          loggedMissingColumn = true
+        }
+      } else {
+        console.error('[sender-backfill] Failed to update rows:', failedUpdate.error)
+      }
       break
     }
 

@@ -1,12 +1,13 @@
 import { EmailContentParser } from './email-parser'
 import { decodeHtmlEntities } from './format-email-body'
-import { parseSenderFromHeaderDetailed } from './sender-utils'
+import { parseSenderFromHeaderDetailed, normalizeSenderKey } from './sender-utils'
 import type { GmailMessage, GmailMessagePart } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface ProcessedEmail {
   gmail_id: string
   sender: string
+  sender_key: string
   from_email: string | null
   from_domain: string | null
   sender_kind: 'person' | 'organization' | 'unknown'
@@ -88,6 +89,7 @@ export class EmailService {
       return {
         gmail_id: message.id,
         sender: parsedSender.displayName,
+        sender_key: normalizeSenderKey(parsedSender.displayName),
         from_email: parsedSender.email,
         from_domain: parsedSender.domain,
         sender_kind: parsedSender.senderKind,

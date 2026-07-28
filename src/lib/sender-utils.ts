@@ -95,10 +95,15 @@ export function parseSenderFromHeader(fromHeader: string): string {
   return parseSenderFromHeaderDetailed(fromHeader).displayName
 }
 
+/** Canonical sender identity used for stats grouping and expand queries. */
+export function normalizeSenderKey(sender: string | null | undefined): string {
+  const trimmed = stripRfc5322Quotes((sender ?? '').trim()).replace(/[\u2018\u2019]/g, "'")
+  return trimmed || UNKNOWN_SENDER
+}
+
 /** Map blank or whitespace-only stored senders to a display label. */
 export function normalizeSenderForDisplay(sender: string | null | undefined): string {
-  const trimmed = stripRfc5322Quotes((sender ?? '').trim())
-  return trimmed || UNKNOWN_SENDER
+  return normalizeSenderKey(sender)
 }
 
 /** DB values to match when querying emails for a display sender. */
@@ -168,4 +173,42 @@ export function classifyStoredSenderRow(input: {
     domain,
     senderKind,
   }
+}
+
+/** Use DB kind when confident; otherwise classify from the stored display name. */
+export function enrichSenderKind(
+  sender: string,
+  kind?: string | null,
+  fromEmail?: string | null,
+  fromDomain?: string | null
+): SenderKind {
+  const dbKind = normalizeSenderKind(kind)
+  if (dbKind === 'person' || dbKind === 'organization') {
+    return dbKind
+  }
+
+  return classifyStoredSenderRow({
+    sender,
+    from_email: fromEmail,
+    from_domain: fromDomain,
+  }).senderKind
+}
+
+/** Apply read-time classification so filters work even when DB kind is missing. */
+export function enrichSenderStats(
+  senders: SenderStatsEntry[],
+  options?: {
+    fromEmailBySender?: Map<string, string | null>
+    fromDomainBySender?: Map<string, string | null>
+  }
+): SenderStatsEntry[] {
+  return senders.map((entry) => ({
+    ...entry,
+    kind: enrichSenderKind(
+      entry.sender,
+      entry.kind,
+      options?.fromEmailBySender?.get(entry.sender),
+      options?.fromDomainBySender?.get(entry.sender)
+    ),
+  }))
 }

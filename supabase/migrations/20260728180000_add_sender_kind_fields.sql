@@ -7,8 +7,11 @@ ALTER TABLE emails
 CREATE INDEX IF NOT EXISTS emails_user_id_sender_kind_idx ON emails(user_id, sender_kind);
 CREATE INDEX IF NOT EXISTS emails_user_id_sender_idx ON emails(user_id, sender);
 
+-- Must drop first: PostgreSQL cannot change RETURNS TABLE shape with CREATE OR REPLACE
+DROP FUNCTION IF EXISTS get_sender_statistics(uuid);
+
 -- Return sender statistics with majority-vote kind per sender bucket
-CREATE OR REPLACE FUNCTION get_sender_statistics(user_id uuid)
+CREATE FUNCTION get_sender_statistics(user_id uuid)
 RETURNS TABLE (
   sender text,
   count bigint,
