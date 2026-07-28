@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
-import { fetchSenderEmailsPage } from '../src/lib/sender-emails-query.ts'
-import { normalizeSenderKey } from '../src/lib/sender-utils.ts'
+import { fetchSenderEmailsPage } from '../src/lib/sender-emails-query'
+import { normalizeSenderKey } from '../src/lib/sender-utils'
 
 function loadEnv() {
   const envPath = '.env.local'

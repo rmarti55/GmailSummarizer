@@ -46,7 +46,12 @@ export async function GET() {
 
       for (const email of emails ?? []) {
         const bucketKey = normalizeSenderKey(email.sender_key ?? email.sender)
-        const bucket = senderBuckets.get(bucketKey) ?? { count: 0, kind: email.sender_kind }
+        const bucket = senderBuckets.get(bucketKey) ?? {
+          count: 0,
+          kind: email.sender_kind,
+          from_email: email.from_email,
+          from_domain: email.from_domain,
+        }
         bucket.count += 1
         bucket.kind = email.sender_kind ?? bucket.kind
         bucket.from_email = bucket.from_email ?? email.from_email
