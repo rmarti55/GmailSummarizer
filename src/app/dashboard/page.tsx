@@ -225,8 +225,6 @@ export default function Dashboard() {
   }
 
   const handleDeleteEmail = async (emailId: string) => {
-    if (!confirm('Move this email to Gmail Trash and remove it from the app?')) return
-
     setDeletingId(emailId)
     try {
       const success = await deleteEmailFromGmail(emailId)
@@ -245,13 +243,6 @@ export default function Dashboard() {
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    if (
-      !confirm(
-        `Move ${ids.length} email${ids.length === 1 ? '' : 's'} to Gmail Trash and remove from the app?`
-      )
-    ) {
-      return
-    }
 
     setBulkDeleting(true)
     setBulkDeleteProgress(`Moving ${ids.length} email${ids.length === 1 ? '' : 's'} to trash...`)
