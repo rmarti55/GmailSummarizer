@@ -33,7 +33,7 @@ export default function SendersPage() {
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
   const [detailEmailId, setDetailEmailId] = useState<string | null>(null)
   const [detailSender, setDetailSender] = useState<string | null>(null)
-  const [pageSize, setPageSize] = useState<PageSize>(10)
+  const [pageSize, setPageSize] = useState<PageSize>(100)
   const [totalEmailCount, setTotalEmailCount] = useState(0)
 
   const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
@@ -332,21 +332,16 @@ export default function SendersPage() {
         </div>
 
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-1">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Skeleton className="w-8 h-8 rounded-full" />
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-48" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
+              <Card key={i} className="rounded-lg py-0 gap-0 shadow-none">
+                <CardContent className="px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+                      <Skeleton className="h-4 w-48" />
                     </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-6 w-20" />
-                    </div>
+                    <Skeleton className="h-5 w-20 shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -361,7 +356,7 @@ export default function SendersPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-1">
             {senders.map((sender, index) => (
               <ExpandableSenderCard
                 key={sender.sender}

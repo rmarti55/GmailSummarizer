@@ -25,8 +25,10 @@ export interface SyncProgress {
   current: number
   total: number
   isRunning: boolean
+  status?: SyncJobStatus
   phase?: SyncJobPhase
   error?: string | null
+  updatedAt?: string
 }
 
 type Supabase = SupabaseClient
@@ -57,16 +59,35 @@ function mapRow(row: Record<string, unknown>): SyncJob {
 
 export function toSyncProgress(job: SyncJob | null): SyncProgress {
   if (!job) {
-    return { current: 0, total: 0, isRunning: false }
+    return { current: 0, total: 0, isRunning: false, status: 'idle' }
   }
 
   return {
     current: job.current,
     total: job.total,
     isRunning: job.status === 'running',
+    status: job.status,
     phase: job.phase,
     error: job.error,
+    updatedAt: job.updated_at,
   }
+}
+
+/** Reset terminal job state for a new run while preserving history_id. */
+export async function idleSyncJob(
+  supabase: Supabase,
+  userId: string
+): Promise<SyncJob | null> {
+  return updateSyncJob(supabase, userId, {
+    status: 'idle',
+    phase: 'idle',
+    current: 0,
+    total: 0,
+    list_page_token: null,
+    message_ids: [],
+    processed_offset: 0,
+    error: null,
+  })
 }
 
 export async function getSyncJob(

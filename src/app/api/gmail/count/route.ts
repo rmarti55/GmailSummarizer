@@ -65,26 +65,44 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to count emails' }, { status: 500 })
     }
 
-    let lastEmailQuery = supabase
-      .from('emails')
-      .select('created_at')
+    // Prefer durable sync job timestamp over newest email date so
+    // "Last synced" reflects when sync actually ran.
+    const { data: syncJob, error: syncJobError } = await supabase
+      .from('email_sync_jobs')
+      .select('updated_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .maybeSingle()
 
-    if (sender) {
-      lastEmailQuery = lastEmailQuery.eq('sender', sender)
+    if (syncJobError) {
+      console.error('Error getting sync job timestamp:', syncJobError)
     }
 
-    const { data: lastEmail, error: lastEmailError } = await lastEmailQuery.single()
+    let lastSyncTime: string | null = syncJob?.updated_at ?? null
 
-    if (lastEmailError && lastEmailError.code !== 'PGRST116') {
-      console.error('Error getting last email:', lastEmailError)
+    if (!lastSyncTime) {
+      let lastEmailQuery = supabase
+        .from('emails')
+        .select('created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (sender) {
+        lastEmailQuery = lastEmailQuery.eq('sender', sender)
+      }
+
+      const { data: lastEmail, error: lastEmailError } = await lastEmailQuery.single()
+
+      if (lastEmailError && lastEmailError.code !== 'PGRST116') {
+        console.error('Error getting last email:', lastEmailError)
+      }
+
+      lastSyncTime = lastEmail?.created_at || null
     }
 
     return NextResponse.json({
       totalEmails: count || 0,
-      lastSyncTime: lastEmail?.created_at || null,
+      lastSyncTime,
     })
   } catch (error) {
     console.error('Email count API error:', error)

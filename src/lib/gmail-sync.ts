@@ -548,7 +548,7 @@ export async function runFullSyncChunk(
 
   let job = await getSyncJob(supabase, userId)
 
-  if (!job || job.status === 'completed' || job.status === 'failed') {
+  if (!job || job.status === 'idle' || job.status === 'completed' || job.status === 'failed') {
     job = await startFullSyncJob(supabase, userId)
   }
 

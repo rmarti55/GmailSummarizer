@@ -106,30 +106,31 @@ export function ExpandableSenderCard({
   const displayName = normalizeSenderForDisplay(sender.sender)
 
   return (
-    <Card className="overflow-hidden transition-all duration-300 ease-in-out hover:shadow-md">
+    <Card className="overflow-hidden rounded-lg py-0 gap-0 shadow-none transition-colors hover:bg-accent/30">
       <div
-        className="flex items-center justify-between py-4 px-6 cursor-pointer hover:bg-accent transition-colors"
+        className="flex items-center justify-between gap-3 py-2 px-3 cursor-pointer hover:bg-accent transition-colors"
         onClick={() => onToggleExpand(sender.sender)}
       >
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center justify-center w-8 h-8 bg-primary/10 text-primary rounded-full font-semibold text-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
             {rank}
           </div>
-          <div>
-            <p className="font-medium text-foreground">{displayName}</p>
-            <p className="text-sm text-muted-foreground">
-              {sender.percentage}% of total emails
-            </p>
-          </div>
+          <p className="min-w-0 truncate text-sm font-medium text-foreground">
+            {displayName}
+            <span className="font-normal text-muted-foreground">
+              {' '}
+              · {sender.percentage}%
+            </span>
+          </p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Badge variant="secondary" className="text-sm">
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="secondary" className="text-xs">
             {sender.count} emails
           </Badge>
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform" />
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground transition-transform" />
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform" />
           )}
         </div>
       </div>
@@ -137,7 +138,7 @@ export function ExpandableSenderCard({
       {isExpanded && (
         <div className="animate-in slide-in-from-top-2 duration-300">
           <Separator />
-          <CardContent className="p-4 pt-4">
+          <CardContent className="p-3">
             {loading ? (
               <div className="rounded-md border">
                 {Array.from({ length: 4 }).map((_, i) => (

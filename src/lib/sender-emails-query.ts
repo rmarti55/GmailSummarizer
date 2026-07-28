@@ -53,7 +53,7 @@ export async function fetchSenderEmailsPage(
 
 export function parseSenderEmailsRequest(searchParams: URLSearchParams) {
   const page = parseInt(searchParams.get('page') || '1', 10)
-  const limit = clampPageSize(parseInt(searchParams.get('limit') || '10', 10))
+  const limit = clampPageSize(parseInt(searchParams.get('limit') || '100', 10))
   const sender = searchParams.get('sender') ?? ''
 
   return { page, limit, sender }

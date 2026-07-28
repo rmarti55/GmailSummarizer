@@ -8,7 +8,8 @@
     "dev:restart": "lsof -ti :3000 | xargs kill -9 2>/dev/null; sleep 1; find .next -mindepth 1 -delete 2>/dev/null; rm -rf .next 2>/dev/null; next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx --yes tsx --test src/lib/sync-cta.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
