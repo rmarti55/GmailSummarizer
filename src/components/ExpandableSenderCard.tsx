@@ -13,6 +13,7 @@ import { PageSizeSelect, type PageSize } from '@/components/PageSizeSelect'
 import { Email } from '@/types'
 import { applyEmailSelectionChange, type SelectChangeOptions } from '@/lib/email-selection'
 import { normalizeSenderForDisplay } from '@/lib/sender-utils'
+import { cn } from '@/lib/utils'
 
 interface SenderStats {
   sender: string
@@ -47,6 +48,7 @@ interface ExpandableSenderCardProps {
   deletingId: string | null
   bulkDeleting?: boolean
   bulkDeleteProgress?: string | null
+  isExiting?: boolean
 }
 
 export function ExpandableSenderCard({
@@ -67,6 +69,7 @@ export function ExpandableSenderCard({
   deletingId,
   bulkDeleting = false,
   bulkDeleteProgress = null,
+  isExiting = false,
 }: ExpandableSenderCardProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorRef = useRef<string | null>(null)
@@ -118,18 +121,31 @@ export function ExpandableSenderCard({
 
   const handleBulkDelete = async () => {
     const ids = Array.from(selectedIds)
-    if (ids.length === 0) return
+    if (ids.length === 0 || isExiting) return
     await onBulkDelete(ids, sender.sender)
     clearSelection()
   }
 
   const displayName = normalizeSenderForDisplay(sender.sender)
+  const showExpanded = isExpanded && !isExiting
 
   return (
-    <Card className="overflow-hidden rounded-lg py-0 gap-0 shadow-none transition-colors hover:bg-accent/30">
+    <Card
+      className={cn(
+        'overflow-hidden rounded-lg py-0 gap-0 shadow-none',
+        isExiting
+          ? 'pointer-events-none animate-out fade-out-0 slide-out-to-top-1 duration-200 max-h-0 opacity-0'
+          : 'transition-colors hover:bg-accent/30'
+      )}
+    >
       <div
-        className="flex items-center justify-between gap-3 py-1.5 px-3 cursor-pointer hover:bg-accent transition-colors"
-        onClick={() => onToggleExpand(sender.sender)}
+        className={cn(
+          'flex items-center justify-between gap-3 py-1.5 px-3 transition-colors',
+          isExiting ? 'cursor-default' : 'cursor-pointer hover:bg-accent'
+        )}
+        onClick={() => {
+          if (!isExiting) onToggleExpand(sender.sender)
+        }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
@@ -155,7 +171,7 @@ export function ExpandableSenderCard({
         </div>
       </div>
 
-      {isExpanded && (
+      {showExpanded && (
         <div className="animate-in slide-in-from-top-2 duration-300">
           <Separator />
           <CardContent className="p-2">

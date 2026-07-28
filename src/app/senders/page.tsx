@@ -23,6 +23,8 @@ const SENDER_FILTERS: Array<{ id: SenderFilter; label: string }> = [
   { id: 'organization', label: 'Organizations' },
 ]
 
+const SENDER_EXIT_MS = 220
+
 function pageAfterDelete(pagination: PaginationInfo | undefined, deletedCount: number): number {
   if (!pagination) return 1
   const newTotal = Math.max(0, pagination.total - deletedCount)
@@ -38,6 +40,7 @@ export default function SendersPage() {
   const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
   const [senderFetchError, setSenderFetchError] = useState<Record<string, boolean>>({})
+  const [exitingSenders, setExitingSenders] = useState<Set<string>>(new Set())
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
@@ -178,9 +181,15 @@ export default function SendersPage() {
     }
   }
 
-  const fetchSenderEmails = async (sender: string, page: number = 1, limit: number = pageSize) => {
+  const fetchSenderEmails = async (
+    sender: string,
+    page: number = 1,
+    limit: number = pageSize,
+    options?: { expectedCount?: number }
+  ) => {
     const senderKey = normalizeSenderForDisplay(sender)
-    const expectedCount = senders.find((entry) => entry.sender === senderKey)?.count ?? 0
+    const expectedCount =
+      options?.expectedCount ?? senders.find((entry) => entry.sender === senderKey)?.count ?? 0
     setSenderLoading((prev) => ({ ...prev, [senderKey]: true }))
     setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
     try {
@@ -224,6 +233,8 @@ export default function SendersPage() {
   }
 
   const handleToggleExpand = async (sender: string) => {
+    if (exitingSenders.has(sender)) return
+
     if (expandedSender === sender) {
       setExpandedSender(null)
     } else {
@@ -260,6 +271,31 @@ export default function SendersPage() {
     await fetchSenderEmails(sender, 1, nextPageSize)
   }
 
+  const removeSenderFromState = (senderKey: string) => {
+    setSenders((prev) => prev.filter((entry) => entry.sender !== senderKey))
+    setExpandedSender((current) => (current === senderKey ? null : current))
+    setSenderEmails((prev) => {
+      const next = { ...prev }
+      delete next[senderKey]
+      return next
+    })
+    setSenderPagination((prev) => {
+      const next = { ...prev }
+      delete next[senderKey]
+      return next
+    })
+    setSenderFetchError((prev) => {
+      const next = { ...prev }
+      delete next[senderKey]
+      return next
+    })
+    setExitingSenders((prev) => {
+      const next = new Set(prev)
+      next.delete(senderKey)
+      return next
+    })
+  }
+
   const afterSenderEmailsDeleted = async (emailIds: string[], senderName: string) => {
     const senderKey = normalizeSenderForDisplay(senderName)
     const idSet = new Set(emailIds)
@@ -269,24 +305,53 @@ export default function SendersPage() {
     }
 
     const pagination = senderPagination[senderKey]
-    const nextPage = pageAfterDelete(pagination, emailIds.length)
-    await fetchSenderEmails(senderKey, nextPage, pageSize)
+    const localEmails = senderEmails[senderKey] || []
+    const totalBefore = pagination?.total ?? localEmails.length
+    const remaining = Math.max(0, totalBefore - emailIds.length)
 
-    const nextSenders = await fetchSenderStats({ silent: true })
-    await fetchEmailCount()
-    if (nextSenders && !nextSenders.some((entry) => entry.sender === senderKey)) {
-      setExpandedSender((current) => (current === senderKey ? null : current))
-      setSenderEmails((prev) => {
-        const next = { ...prev }
-        delete next[senderKey]
-        return next
-      })
-      setSenderPagination((prev) => {
-        const next = { ...prev }
-        delete next[senderKey]
-        return next
-      })
+    if (remaining === 0) {
+      setSenderEmails((prev) => ({ ...prev, [senderKey]: [] }))
+      setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
+      setExitingSenders((prev) => new Set(prev).add(senderKey))
+
+      void fetchEmailCount()
+
+      window.setTimeout(() => {
+        removeSenderFromState(senderKey)
+        void fetchSenderStats({ silent: true })
+      }, SENDER_EXIT_MS)
+      return
     }
+
+    setSenderEmails((prev) => ({
+      ...prev,
+      [senderKey]: (prev[senderKey] || []).filter((email) => !idSet.has(email.id)),
+    }))
+    setSenders((prev) =>
+      prev.map((entry) =>
+        entry.sender === senderKey ? { ...entry, count: remaining } : entry
+      )
+    )
+    if (pagination) {
+      const totalPages = Math.max(1, Math.ceil(remaining / pagination.limit))
+      const nextPage = Math.min(pagination.page, totalPages)
+      setSenderPagination((prev) => ({
+        ...prev,
+        [senderKey]: {
+          ...pagination,
+          total: remaining,
+          totalPages,
+          page: nextPage,
+          hasNext: nextPage < totalPages,
+          hasPrev: nextPage > 1,
+        },
+      }))
+    }
+
+    const nextPage = pageAfterDelete(pagination, emailIds.length)
+    await fetchSenderEmails(senderKey, nextPage, pageSize, { expectedCount: remaining })
+    await fetchSenderStats({ silent: true })
+    await fetchEmailCount()
   }
 
   const handleDeleteEmail = async (emailId: string, senderName: string) => {
@@ -445,6 +510,7 @@ export default function SendersPage() {
                 deletingId={deletingId}
                 bulkDeleting={bulkDeleting}
                 bulkDeleteProgress={bulkDeleting ? bulkDeleteProgress : null}
+                isExiting={exitingSenders.has(sender.sender)}
               />
             ))}
           </div>
