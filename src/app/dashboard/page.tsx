@@ -77,6 +77,7 @@ export default function Dashboard() {
   const [sortMode, setSortMode] = useState<InboxSort>('newest')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [detailEmailId, setDetailEmailId] = useState<string | null>(null)
 
@@ -242,6 +243,7 @@ export default function Dashboard() {
     }
 
     setBulkDeleting(true)
+    setBulkDeleteProgress(`Moving ${ids.length} email${ids.length === 1 ? '' : 's'} to trash...`)
     try {
       const result = await deleteEmailsFromGmail(ids)
       if (result && result.deletedIds.length > 0) {
@@ -255,8 +257,10 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to bulk delete emails:', error)
       alert('Failed to delete emails. Please try again.')
+    } finally {
+      setBulkDeleting(false)
+      setBulkDeleteProgress(null)
     }
-    setBulkDeleting(false)
   }
 
   const handleSelectChange = (emailId: string, selected: boolean) => {
@@ -448,6 +452,7 @@ export default function Dashboard() {
                 onClearSelection={() => setSelectedIds(new Set())}
                 onBulkDelete={handleBulkDelete}
                 deleting={bulkDeleting}
+                deleteProgress={bulkDeleteProgress ?? undefined}
               />
 
               <div className="rounded-md border overflow-hidden">

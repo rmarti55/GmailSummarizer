@@ -12,6 +12,7 @@ interface EmailBulkActionBarProps {
   onClearSelection: () => void
   onBulkDelete: () => void
   deleting?: boolean
+  deleteProgress?: string
 }
 
 export function EmailBulkActionBar({
@@ -22,6 +23,7 @@ export function EmailBulkActionBar({
   onClearSelection,
   onBulkDelete,
   deleting = false,
+  deleteProgress,
 }: EmailBulkActionBarProps) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 px-3 py-2">
@@ -51,7 +53,9 @@ export function EmailBulkActionBar({
             className="text-destructive hover:text-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
-            {deleting ? 'Deleting...' : `Delete ${selectedCount}`}
+            {deleting
+              ? (deleteProgress ?? 'Deleting...')
+              : `Delete ${selectedCount}`}
           </Button>
         </div>
       )}

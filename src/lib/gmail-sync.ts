@@ -618,3 +618,33 @@ export async function trashGmailMessage(
     throw error
   }
 }
+
+export async function trashGmailMessagesBatch(
+  gmail: gmail_v1.Gmail,
+  gmailIds: string[]
+): Promise<void> {
+  if (gmailIds.length === 0) {
+    return
+  }
+
+  for (let attempt = 0; attempt <= GMAIL_FETCH_MAX_RETRIES; attempt++) {
+    try {
+      await gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: {
+          ids: gmailIds,
+          addLabelIds: ['TRASH'],
+          removeLabelIds: ['INBOX'],
+        },
+      })
+      return
+    } catch (error) {
+      if (attempt < GMAIL_FETCH_MAX_RETRIES && isRetryableGmailError(error)) {
+        const delay = Math.min(1000 * 2 ** attempt, 8000)
+        await sleep(delay)
+        continue
+      }
+      throw error
+    }
+  }
+}

@@ -1,5 +1,3 @@
-const BATCH_DELETE_CHUNK_SIZE = 50
-
 export type BatchDeleteResult = {
   deletedIds: string[]
   failedIds: string[]
@@ -18,31 +16,6 @@ export async function deleteEmailFromGmail(emailId: string): Promise<boolean> {
   }
 }
 
-async function deleteEmailBatch(
-  emailIds: string[]
-): Promise<{ deletedIds: string[]; failedIds: string[]; error?: string }> {
-  const response = await fetch('/api/gmail/emails/batch-delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: emailIds }),
-  })
-
-  const data = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    const error =
-      typeof data.error === 'string' && data.error.length > 0
-        ? data.error
-        : 'Failed to delete emails'
-    return { deletedIds: [], failedIds: emailIds, error }
-  }
-
-  return {
-    deletedIds: Array.isArray(data.deletedIds) ? data.deletedIds : [],
-    failedIds: Array.isArray(data.failedIds) ? data.failedIds : [],
-  }
-}
-
 export async function deleteEmailsFromGmail(
   emailIds: string[]
 ): Promise<BatchDeleteResult | null> {
@@ -51,27 +24,30 @@ export async function deleteEmailsFromGmail(
   }
 
   try {
-    const deletedIds: string[] = []
-    const failedIds: string[] = []
-    let lastError: string | undefined
+    const response = await fetch('/api/gmail/emails/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: emailIds }),
+    })
 
-    for (let index = 0; index < emailIds.length; index += BATCH_DELETE_CHUNK_SIZE) {
-      const chunk = emailIds.slice(index, index + BATCH_DELETE_CHUNK_SIZE)
-      const result = await deleteEmailBatch(chunk)
+    const data = await response.json().catch(() => ({}))
 
-      deletedIds.push(...result.deletedIds)
-      failedIds.push(...result.failedIds)
-
-      if (result.error) {
-        lastError = result.error
+    if (!response.ok) {
+      const error =
+        typeof data.error === 'string' && data.error.length > 0
+          ? data.error
+          : 'Failed to delete emails'
+      return {
+        deletedIds: Array.isArray(data.deletedIds) ? data.deletedIds : [],
+        failedIds: Array.isArray(data.failedIds) ? data.failedIds : emailIds,
+        error,
       }
     }
 
-    if (deletedIds.length === 0 && lastError) {
-      return { deletedIds, failedIds, error: lastError }
+    return {
+      deletedIds: Array.isArray(data.deletedIds) ? data.deletedIds : [],
+      failedIds: Array.isArray(data.failedIds) ? data.failedIds : [],
     }
-
-    return { deletedIds, failedIds, error: lastError }
   } catch (error) {
     console.error('[gmail] Client batch delete failed:', error)
     return null

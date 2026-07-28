@@ -29,6 +29,7 @@ export default function SendersPage() {
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
   const [detailEmailId, setDetailEmailId] = useState<string | null>(null)
   const [detailSender, setDetailSender] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState<PageSize>(10)
@@ -111,20 +112,30 @@ export default function SendersPage() {
     }
   }
 
-  const fetchSenderStats = async () => {
-    setLoading(true)
+  const fetchSenderStats = async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true)
+    }
+
     try {
       const response = await fetch('/api/senders')
       if (response.ok) {
         const data = await response.json()
-        setSenders(data.senders || [])
-      } else {
-        console.error('Failed to fetch sender stats')
+        const nextSenders = (data.senders || []) as SenderStats[]
+        setSenders(nextSenders)
+        return nextSenders
       }
+
+      console.error('Failed to fetch sender stats')
     } catch (error) {
       console.error('Failed to fetch sender stats:', error)
+    } finally {
+      if (!options?.silent) {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+
+    return null
   }
 
   const fetchSenderEmails = async (sender: string, page: number = 1, limit: number = pageSize) => {
@@ -199,6 +210,21 @@ export default function SendersPage() {
     const pagination = senderPagination[senderName]
     const nextPage = pageAfterDelete(pagination, emailIds.length)
     await fetchSenderEmails(senderName, nextPage, pageSize)
+
+    const nextSenders = await fetchSenderStats({ silent: true })
+    if (nextSenders && !nextSenders.some((entry) => entry.sender === senderName)) {
+      setExpandedSender((current) => (current === senderName ? null : current))
+      setSenderEmails((prev) => {
+        const next = { ...prev }
+        delete next[senderName]
+        return next
+      })
+      setSenderPagination((prev) => {
+        const next = { ...prev }
+        delete next[senderName]
+        return next
+      })
+    }
   }
 
   const handleDeleteEmail = async (emailId: string, senderName: string) => {
@@ -230,6 +256,7 @@ export default function SendersPage() {
     }
 
     setBulkDeleting(true)
+    setBulkDeleteProgress(`Moving ${emailIds.length} email${emailIds.length === 1 ? '' : 's'} to trash...`)
     try {
       const result = await deleteEmailsFromGmail(emailIds)
       if (result && result.deletedIds.length > 0) {
@@ -243,8 +270,10 @@ export default function SendersPage() {
     } catch (error) {
       console.error('Failed to bulk delete emails:', error)
       alert('Failed to delete emails. Please try again.')
+    } finally {
+      setBulkDeleting(false)
+      setBulkDeleteProgress(null)
     }
-    setBulkDeleting(false)
   }
 
   const handleOpenEmail = (email: Email, senderName: string) => {
@@ -326,6 +355,7 @@ export default function SendersPage() {
                 onOpenEmail={(email) => handleOpenEmail(email, sender.sender)}
                 deletingId={deletingId}
                 bulkDeleting={bulkDeleting}
+                bulkDeleteProgress={bulkDeleting ? bulkDeleteProgress : null}
               />
             ))}
           </div>

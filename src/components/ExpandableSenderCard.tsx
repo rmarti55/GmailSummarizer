@@ -43,6 +43,7 @@ interface ExpandableSenderCardProps {
   onOpenEmail: (email: Email) => void
   deletingId: string | null
   bulkDeleting?: boolean
+  bulkDeleteProgress?: string | null
 }
 
 export function ExpandableSenderCard({
@@ -61,6 +62,7 @@ export function ExpandableSenderCard({
   onOpenEmail,
   deletingId,
   bulkDeleting = false,
+  bulkDeleteProgress = null,
 }: ExpandableSenderCardProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -164,6 +166,7 @@ export function ExpandableSenderCard({
                   onClearSelection={() => setSelectedIds(new Set())}
                   onBulkDelete={handleBulkDelete}
                   deleting={bulkDeleting}
+                  deleteProgress={bulkDeleteProgress ?? undefined}
                 />
 
                 <div className="rounded-md border overflow-hidden">
