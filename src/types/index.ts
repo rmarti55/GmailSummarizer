@@ -1,7 +1,12 @@
+export type SenderKind = 'person' | 'organization' | 'unknown'
+
 export interface Email {
   id: string
   gmail_id: string
   sender: string
+  from_email?: string | null
+  from_domain?: string | null
+  sender_kind?: SenderKind
   subject: string
   summary: string | null
   body_preview: string
@@ -52,6 +57,17 @@ export interface SenderStats {
   sender: string
   count: number
   percentage: number
+  kind: SenderKind
+}
+
+export interface SenderStatsResponse {
+  senders: SenderStats[]
+  counts: {
+    all: number
+    person: number
+    organization: number
+    unknown: number
+  }
 }
 
 export interface PaginationInfo {

@@ -116,13 +116,24 @@ describe('buildSenderEqOrFilter', () => {
 describe('normalizeSenderStats', () => {
   it('merges quoted and unquoted legacy sender buckets', () => {
     const stats = normalizeSenderStats([
-      { sender: '"Amazon"', count: 3 },
-      { sender: 'Amazon', count: 5 },
+      { sender: '"Amazon"', count: 3, kind: 'organization' },
+      { sender: 'Amazon', count: 5, kind: 'organization' },
     ])
 
     assert.equal(stats.length, 1)
     assert.equal(stats[0]?.sender, 'Amazon')
     assert.equal(stats[0]?.count, 8)
     assert.equal(stats[0]?.percentage, 100)
+    assert.equal(stats[0]?.kind, 'organization')
+  })
+
+  it('uses majority vote when merging sender kinds', () => {
+    const stats = normalizeSenderStats([
+      { sender: 'Example Sender', count: 3, kind: 'person' },
+      { sender: '"Example Sender"', count: 7, kind: 'organization' },
+    ])
+
+    assert.equal(stats.length, 1)
+    assert.equal(stats[0]?.kind, 'organization')
   })
 })

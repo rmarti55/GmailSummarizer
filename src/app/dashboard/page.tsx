@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -15,6 +15,7 @@ import { type PageSize } from '@/components/PageSizeSelect'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { deleteEmailFromGmail, deleteEmailsFromGmail } from '@/lib/client-gmail-delete'
 import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
+import { applyEmailSelectionChange, type SelectChangeOptions } from '@/lib/email-selection'
 import { Email } from '@/types'
 
 type InboxSort = 'newest' | 'oldest' | 'sender-asc' | 'sender-desc'
@@ -82,6 +83,7 @@ export default function Dashboard() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteProgress, setBulkDeleteProgress] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectionAnchorRef = useRef<string | null>(null)
   const [detailEmailId, setDetailEmailId] = useState<string | null>(null)
 
   const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
@@ -144,7 +146,13 @@ export default function Dashboard() {
 
   const resetListView = () => {
     setSelectedIds(new Set())
+    selectionAnchorRef.current = null
     setDetailEmailId(null)
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    selectionAnchorRef.current = null
   }
 
   const handlePageChange = (page: number) => {
@@ -266,12 +274,23 @@ export default function Dashboard() {
     }
   }
 
-  const handleSelectChange = (emailId: string, selected: boolean) => {
+  const handleSelectChange = (
+    emailId: string,
+    selected: boolean,
+    options?: SelectChangeOptions
+  ) => {
+    const emailIdsInView = emails.map((email) => email.id)
     setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (selected) next.add(emailId)
-      else next.delete(emailId)
-      return next
+      const result = applyEmailSelectionChange(
+        prev,
+        selectionAnchorRef.current,
+        emailIdsInView,
+        emailId,
+        selected,
+        options
+      )
+      selectionAnchorRef.current = result.anchorId
+      return result.selectedIds
     })
   }
 
@@ -279,7 +298,7 @@ export default function Dashboard() {
     if (selected) {
       setSelectedIds(new Set(emails.map((email) => email.id)))
     } else {
-      setSelectedIds(new Set())
+      clearSelection()
     }
   }
 
@@ -321,7 +340,7 @@ export default function Dashboard() {
       const response = await fetch('/api/clear-emails', { method: 'POST' })
       if (response.ok) {
         setEmails([])
-        setSelectedIds(new Set())
+        clearSelection()
         setDetailEmailId(null)
         alert('All emails cleared! Click "Refresh" to fetch and process emails with clean formatting.')
       }
@@ -453,7 +472,7 @@ export default function Dashboard() {
                 totalInView={emails.length}
                 allSelected={allSelected}
                 onSelectAllInView={handleSelectAllInView}
-                onClearSelection={() => setSelectedIds(new Set())}
+                onClearSelection={clearSelection}
                 onBulkDelete={handleBulkDelete}
                 deleting={bulkDeleting}
                 deleteProgress={bulkDeleteProgress ?? undefined}

@@ -42,7 +42,13 @@ export function EmailBulkActionBar({
     >
       <div className="flex min-w-0 items-center gap-2">
         <Checkbox
-          checked={allSelected && totalInView > 0}
+          checked={
+            allSelected && totalInView > 0
+              ? true
+              : selectedCount > 0
+                ? 'indeterminate'
+                : false
+          }
           onCheckedChange={(checked) => onSelectAllInView(checked === true)}
           aria-label="Select all emails in view"
         />

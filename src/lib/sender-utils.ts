@@ -1,9 +1,27 @@
+import {
+  classifySenderKind,
+  classifySenderKindFromStored,
+  extractEmailDomain,
+  resolveMajoritySenderKind,
+  type SenderKind,
+} from './sender-classifier'
+
 export const UNKNOWN_SENDER = 'Unknown sender'
+
+export type { SenderKind }
+
+export interface ParsedSender {
+  displayName: string
+  email: string | null
+  domain: string | null
+  senderKind: SenderKind
+}
 
 export interface SenderStatsEntry {
   sender: string
   count: number
   percentage: number
+  kind: SenderKind
 }
 
 /** Remove a single RFC5322 quoted-string wrapper and unescape doubled quotes. */
@@ -26,28 +44,55 @@ export function buildSenderEqOrFilter(senderValues: string[]): string {
   return unique.map((value) => `sender.eq.${escapePostgrestEqValue(value)}`).join(',')
 }
 
-/** Parse a Gmail From header into a display-safe sender name. */
-export function parseSenderFromHeader(fromHeader: string): string {
+/** Parse a Gmail From header into structured sender metadata. */
+export function parseSenderFromHeaderDetailed(fromHeader: string): ParsedSender {
   const trimmed = fromHeader.trim()
   if (!trimmed || trimmed === 'Unknown') {
-    return UNKNOWN_SENDER
+    const unknown: ParsedSender = {
+      displayName: UNKNOWN_SENDER,
+      email: null,
+      domain: null,
+      senderKind: 'unknown',
+    }
+    return unknown
   }
+
+  let displayName = stripRfc5322Quotes(trimmed)
+  let email: string | null = null
 
   if (trimmed.includes('<')) {
-    const displayName = stripRfc5322Quotes(trimmed.split('<')[0].trim())
+    displayName = stripRfc5322Quotes(trimmed.split('<')[0].trim())
     const emailMatch = trimmed.match(/<([^>]+)>/)
-    const email = emailMatch?.[1]?.trim()
+    email = emailMatch?.[1]?.trim().toLowerCase() ?? null
 
-    if (displayName) {
-      return displayName
+    if (!displayName && email) {
+      displayName = email
+    } else if (!displayName && !email) {
+      displayName = UNKNOWN_SENDER
     }
-    if (email) {
-      return email
-    }
-    return UNKNOWN_SENDER
+  } else if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    email = stripRfc5322Quotes(trimmed).toLowerCase()
+    displayName = email
   }
 
-  return stripRfc5322Quotes(trimmed)
+  const domain = extractEmailDomain(email)
+  const senderKind = classifySenderKind({
+    displayName,
+    email,
+    domain,
+  })
+
+  return {
+    displayName,
+    email,
+    domain,
+    senderKind,
+  }
+}
+
+/** Parse a Gmail From header into a display-safe sender name. */
+export function parseSenderFromHeader(fromHeader: string): string {
+  return parseSenderFromHeaderDetailed(fromHeader).displayName
 }
 
 /** Map blank or whitespace-only stored senders to a display label. */
@@ -70,25 +115,57 @@ export function getSenderQueryValues(displaySender: string): string[] {
   return Array.from(values)
 }
 
+function normalizeSenderKind(kind: string | null | undefined): SenderKind {
+  if (kind === 'person' || kind === 'organization' || kind === 'unknown') {
+    return kind
+  }
+  return 'unknown'
+}
+
 /** Merge empty-string buckets into Unknown sender and recompute percentages. */
 export function normalizeSenderStats(
-  senders: Array<{ sender: string; count: number; percentage?: number }>
+  senders: Array<{ sender: string; count: number; percentage?: number; kind?: string | null }>
 ): SenderStatsEntry[] {
-  const merged = new Map<string, number>()
+  const merged = new Map<string, { count: number; kindCounts: Map<SenderKind, number> }>()
 
   for (const entry of senders) {
     const key = normalizeSenderForDisplay(entry.sender)
-    merged.set(key, (merged.get(key) ?? 0) + entry.count)
+    const existing = merged.get(key) ?? { count: 0, kindCounts: new Map<SenderKind, number>() }
+    existing.count += entry.count
+    const kind = normalizeSenderKind(entry.kind)
+    existing.kindCounts.set(kind, (existing.kindCounts.get(kind) ?? 0) + entry.count)
+    merged.set(key, existing)
   }
 
-  const totalEmails = Array.from(merged.values()).reduce((sum, count) => sum + count, 0)
+  const totalEmails = Array.from(merged.values()).reduce((sum, entry) => sum + entry.count, 0)
 
   return Array.from(merged.entries())
-    .map(([sender, count]) => ({
+    .map(([sender, entry]) => ({
       sender,
-      count,
+      count: entry.count,
       percentage:
-        totalEmails > 0 ? Math.round((count / totalEmails) * 100 * 10) / 10 : 0,
+        totalEmails > 0 ? Math.round((entry.count / totalEmails) * 100 * 10) / 10 : 0,
+      kind: resolveMajoritySenderKind(entry.kindCounts),
     }))
     .sort((a, b) => b.count - a.count)
+}
+
+export function classifyStoredSenderRow(input: {
+  sender: string
+  from_email?: string | null
+  from_domain?: string | null
+}): Pick<ParsedSender, 'email' | 'domain' | 'senderKind'> {
+  const displayName = normalizeSenderForDisplay(input.sender)
+  const parsedEmail = input.from_email?.trim().toLowerCase() ?? null
+  const email =
+    parsedEmail ??
+    (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(displayName) ? displayName : null)
+  const domain = input.from_domain?.trim().toLowerCase() ?? extractEmailDomain(email)
+  const senderKind = classifySenderKindFromStored(displayName, email, domain)
+
+  return {
+    email,
+    domain,
+    senderKind,
+  }
 }

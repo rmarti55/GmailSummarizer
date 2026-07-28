@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { MoreHorizontal, ExternalLink, Trash2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
@@ -11,11 +12,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Email } from '@/types'
 import { cn } from '@/lib/utils'
+import type { SelectChangeOptions } from '@/lib/email-selection'
 
 interface EmailListRowProps {
   email: Email
   selected: boolean
-  onSelectChange: (emailId: string, selected: boolean) => void
+  onSelectChange: (
+    emailId: string,
+    selected: boolean,
+    options?: SelectChangeOptions
+  ) => void
   onOpen: (email: Email) => void
   onDelete: (emailId: string) => void
   onSenderClick?: (sender: string) => void
@@ -35,6 +41,8 @@ export function EmailListRow({
   showSender = true,
   compact = false,
 }: EmailListRowProps) {
+  const shiftKeyRef = useRef(false)
+
   return (
     <div
       role="button"
@@ -55,13 +63,22 @@ export function EmailListRow({
       <div
         className="flex shrink-0 items-center"
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          shiftKeyRef.current = event.shiftKey
+          event.stopPropagation()
+        }}
+        onPointerDown={(event) => {
+          shiftKeyRef.current = event.shiftKey
+        }}
       >
         <Checkbox
           checked={selected}
-          onCheckedChange={(checked) =>
-            onSelectChange(email.id, checked === true)
-          }
+          onCheckedChange={(checked) => {
+            onSelectChange(email.id, checked === true, {
+              shiftKey: shiftKeyRef.current,
+            })
+            shiftKeyRef.current = false
+          }}
           aria-label={`Select ${email.subject || 'email'}`}
         />
       </div>

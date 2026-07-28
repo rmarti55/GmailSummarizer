@@ -1,12 +1,15 @@
 import { EmailContentParser } from './email-parser'
 import { decodeHtmlEntities } from './format-email-body'
-import { parseSenderFromHeader } from './sender-utils'
+import { parseSenderFromHeaderDetailed } from './sender-utils'
 import type { GmailMessage, GmailMessagePart } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface ProcessedEmail {
   gmail_id: string
   sender: string
+  from_email: string | null
+  from_domain: string | null
+  sender_kind: 'person' | 'organization' | 'unknown'
   subject: string
   body_preview: string
   created_at: string
@@ -78,12 +81,16 @@ export class EmailService {
     try {
       const headers = message.payload?.headers || []
       const fromHeader = headers.find((h) => h.name === 'From')?.value || ''
+      const parsedSender = parseSenderFromHeaderDetailed(fromHeader)
       const subject = headers.find((h) => h.name === 'Subject')?.value || 'No Subject'
       const fullBody = this.extractEmailBody(message)
 
       return {
         gmail_id: message.id,
-        sender: parseSenderFromHeader(fromHeader),
+        sender: parsedSender.displayName,
+        from_email: parsedSender.email,
+        from_domain: parsedSender.domain,
+        sender_kind: parsedSender.senderKind,
         subject,
         body_preview: fullBody || message.snippet || '',
         user_id: userId,

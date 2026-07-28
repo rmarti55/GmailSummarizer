@@ -11,8 +11,17 @@ import { deleteEmailFromGmail, deleteEmailsFromGmail } from '@/lib/client-gmail-
 import { normalizeSenderForDisplay } from '@/lib/sender-utils'
 import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Mail, BarChart3 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { SenderStats, PaginationInfo, Email } from '@/types'
 import { type PageSize } from '@/components/PageSizeSelect'
+
+type SenderFilter = 'all' | 'person' | 'organization'
+
+const SENDER_FILTERS: Array<{ id: SenderFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'person', label: 'People' },
+  { id: 'organization', label: 'Organizations' },
+]
 
 function pageAfterDelete(pagination: PaginationInfo | undefined, deletedCount: number): number {
   if (!pagination) return 1
@@ -35,6 +44,13 @@ export default function SendersPage() {
   const [detailSender, setDetailSender] = useState<string | null>(null)
   const [pageSize, setPageSize] = useState<PageSize>(100)
   const [totalEmailCount, setTotalEmailCount] = useState(0)
+  const [senderFilter, setSenderFilter] = useState<SenderFilter>('all')
+  const [senderCounts, setSenderCounts] = useState({
+    all: 0,
+    person: 0,
+    organization: 0,
+    unknown: 0,
+  })
 
   const handleSummaryComplete = useCallback((emailId: string, summary: string) => {
     setSenderEmails((prev) => {
@@ -126,6 +142,14 @@ export default function SendersPage() {
         const data = await response.json()
         const nextSenders = (data.senders || []) as SenderStats[]
         setSenders(nextSenders)
+        setSenderCounts(
+          data.counts ?? {
+            all: nextSenders.length,
+            person: nextSenders.filter((entry) => entry.kind === 'person').length,
+            organization: nextSenders.filter((entry) => entry.kind === 'organization').length,
+            unknown: nextSenders.filter((entry) => entry.kind === 'unknown').length,
+          }
+        )
         return nextSenders
       }
 
@@ -303,6 +327,16 @@ export default function SendersPage() {
     void Promise.all([fetchSenderStats(), fetchEmailCount()])
   }, [])
 
+  const filteredSenders =
+    senderFilter === 'all'
+      ? senders
+      : senders.filter((sender) => sender.kind === senderFilter)
+
+  const getFilterCount = (filter: SenderFilter) => {
+    if (filter === 'all') return senderCounts.all
+    return senderCounts[filter]
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -331,6 +365,23 @@ export default function SendersPage() {
           </div>
         </div>
 
+        {!loading && senders.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {SENDER_FILTERS.map((filter) => (
+              <Button
+                key={filter.id}
+                type="button"
+                variant={senderFilter === filter.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSenderFilter(filter.id)}
+              >
+                {filter.label}
+                <span className="ml-2 text-xs opacity-80">{getFilterCount(filter.id)}</span>
+              </Button>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <div className="space-y-1">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -347,17 +398,23 @@ export default function SendersPage() {
               </Card>
             ))}
           </div>
-        ) : senders.length === 0 ? (
+        ) : filteredSenders.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No email data found</h3>
-              <p className="text-muted-foreground">Visit the Dashboard to fetch emails first</p>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {senders.length === 0 ? 'No email data found' : 'No senders in this category'}
+              </h3>
+              <p className="text-muted-foreground">
+                {senders.length === 0
+                  ? 'Visit the Dashboard to fetch emails first'
+                  : 'Try another filter to see more senders'}
+              </p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-1">
-            {senders.map((sender, index) => (
+            {filteredSenders.map((sender, index) => (
               <ExpandableSenderCard
                 key={sender.sender}
                 sender={sender}
