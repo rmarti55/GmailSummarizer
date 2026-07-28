@@ -250,7 +250,7 @@ export default function Dashboard() {
           alert(`Deleted ${result.deletedIds.length}, but ${result.failedIds.length} failed.`)
         }
       } else {
-        alert('Failed to delete emails. Please try again.')
+        alert(result?.error ?? 'Failed to delete emails. Please try again.')
       }
     } catch (error) {
       console.error('Failed to bulk delete emails:', error)

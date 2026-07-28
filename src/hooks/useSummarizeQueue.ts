@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SummarizeQueue } from '@/lib/client-summarize'
+import { formatSummarizeError, SummarizeQueue } from '@/lib/client-summarize'
 
 export function useSummarizeQueue(
   onComplete: (emailId: string, summary: string) => void
@@ -18,7 +18,7 @@ export function useSummarizeQueue(
         onCompleteRef.current(emailId, summary)
       },
       onError: (emailId, error) => {
-        console.error(`Summarize failed for ${emailId}:`, error)
+        console.error(`Summarize failed for ${emailId}: ${formatSummarizeError(error)}`)
       },
       onStatusChange: () => {
         setSummarizingIds(queue.getSummarizingIds())

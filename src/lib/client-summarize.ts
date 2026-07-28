@@ -3,6 +3,16 @@ const SUMMARIZE_CONCURRENCY = 3
 type OnComplete = (emailId: string, summary: string) => void
 type OnError = (emailId: string, error: unknown) => void
 
+export function formatSummarizeError(error: unknown): string {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object' && 'error' in error) {
+    const message = (error as { error?: unknown }).error
+    if (typeof message === 'string' && message.length > 0) return message
+  }
+  return 'Failed to generate summary'
+}
+
 export class SummarizeQueue {
   private queue: string[] = []
   private active = 0
@@ -77,10 +87,13 @@ export class SummarizeQueue {
       }
 
       const errorBody = await response.json().catch(() => ({}))
-      this.onError?.(emailId, errorBody)
+      const message = formatSummarizeError(errorBody)
+      console.error(`Summarize failed for ${emailId}: ${message}`, errorBody)
+      this.onError?.(emailId, message)
     } catch (error) {
-      console.error('Failed to summarize:', error)
-      this.onError?.(emailId, error)
+      const message = formatSummarizeError(error)
+      console.error(`Summarize failed for ${emailId}: ${message}`, error)
+      this.onError?.(emailId, message)
     }
   }
 }

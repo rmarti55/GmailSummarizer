@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { withAuthHandler } from '@/lib/auth-middleware'
 import { createGmailSyncContext, trashGmailMessage } from '@/lib/gmail-sync'
 
-const MAX_BATCH_SIZE = 50
+const MAX_BATCH_SIZE = 100
 
 export const POST = withAuthHandler(async ({ user, supabase }, request: NextRequest) => {
   try {

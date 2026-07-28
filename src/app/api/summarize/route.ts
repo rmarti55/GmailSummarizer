@@ -18,7 +18,7 @@ export const POST = withAuthHandler(async ({ user, supabase }, request: NextRequ
     if (!apiKey) {
       return NextResponse.json(
         { error: 'OPENROUTER_API_KEY is not configured' },
-        { status: 500 }
+        { status: 503 }
       )
     }
 
