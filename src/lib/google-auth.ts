@@ -1,5 +1,6 @@
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { singleFlight } from '@/lib/single-flight'
 
 export type GoogleTokenFailureCode =
   | 'missing_tokens'
@@ -29,6 +30,9 @@ interface GmailCredentialsRow {
 const EXPIRY_SKEW_MS = 60_000
 /** Google access tokens are typically ~1h; used when expiry is unknown. */
 const DEFAULT_ACCESS_TOKEN_TTL_MS = 55 * 60 * 1000
+
+/** One in-flight Google refresh per user — concurrent calls share the same promise. */
+const refreshInFlight = new Map<string, Promise<GoogleTokenResult>>()
 
 const METADATA_TOKEN_KEYS = ['google_access_token', 'google_refresh_token'] as const
 
@@ -268,7 +272,7 @@ export async function verifyVaultRefreshAtLogin(userId: string): Promise<GoogleT
   return tryRefresh(userId, credentials.refresh_token)
 }
 
-async function tryRefresh(userId: string, refreshToken: string): Promise<GoogleTokenResult> {
+async function executeRefresh(userId: string, refreshToken: string): Promise<GoogleTokenResult> {
   try {
     const refreshed = await refreshGoogleAccessToken(refreshToken)
     const saved = await persistGoogleTokens(userId, refreshed.accessToken, {
@@ -298,6 +302,15 @@ async function tryRefresh(userId: string, refreshToken: string): Promise<GoogleT
       needsReauth: false,
     }
   }
+}
+
+async function tryRefresh(userId: string, refreshToken: string): Promise<GoogleTokenResult> {
+  const inFlight = refreshInFlight.get(userId)
+  if (inFlight) {
+    console.info('[auth/gmail] awaiting in-flight refresh', { userId })
+  }
+
+  return singleFlight(userId, refreshInFlight, () => executeRefresh(userId, refreshToken))
 }
 
 export async function verifyGmailAccess(accessToken: string): Promise<void> {

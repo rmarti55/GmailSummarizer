@@ -3,7 +3,7 @@
  * with the service role. Does NOT prove browser expand / network resilience.
  */
 import { readFileSync } from 'fs'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { fetchSenderEmailsPage } from '../src/lib/sender-emails-query'
 import { getSenderQueryValues, normalizeSenderKey } from '../src/lib/sender-utils'
 
@@ -19,7 +19,7 @@ function loadEnv() {
 }
 
 async function resolveUserIdForSender(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   sender: string
 ): Promise<string | null> {
   const senderKey = normalizeSenderKey(sender)
@@ -46,7 +46,7 @@ async function resolveUserIdForSender(
 
 async function main() {
   const { url, key } = loadEnv()
-  const supabase = createClient(url, key)
+  const supabase: SupabaseClient = createClient(url, key)
 
   const cases = [
     { sender: "Levi's", minTotal: 1 },

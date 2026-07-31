@@ -353,7 +353,7 @@ export default function SendersPage() {
 
     if (remaining === 0) {
       setSenderEmails((prev) => ({ ...prev, [senderKey]: [] }))
-      setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
+      setSenderFetchError((prev) => ({ ...prev, [senderKey]: null }))
       setExitingSenders((prev) => new Set(prev).add(senderKey))
 
       const removedSender = senders.find((entry) => entry.sender === senderKey)
