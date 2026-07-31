@@ -13,6 +13,10 @@ import { PageSizeSelect, type PageSize } from '@/components/PageSizeSelect'
 import { Email } from '@/types'
 import { applyEmailSelectionChange, type SelectChangeOptions } from '@/lib/email-selection'
 import { normalizeSenderForDisplay } from '@/lib/sender-utils'
+import {
+  getSenderExpandErrorCopy,
+  type SenderExpandErrorKind,
+} from '@/lib/sender-expand-fetch'
 import { cn } from '@/lib/utils'
 
 interface SenderStats {
@@ -38,7 +42,8 @@ interface ExpandableSenderCardProps {
   emails: Email[]
   pagination: PaginationInfo | null
   loading: boolean
-  fetchError?: boolean
+  fetchErrorKind?: SenderExpandErrorKind | null
+  onRetry?: (sender: string) => void
   onPageChange: (sender: string, page: number) => void
   onPageSizeChange: (sender: string, pageSize: PageSize) => void
   pageSize: number
@@ -59,7 +64,8 @@ export function ExpandableSenderCard({
   emails,
   pagination,
   loading,
-  fetchError = false,
+  fetchErrorKind = null,
+  onRetry,
   onPageChange,
   onPageSizeChange,
   pageSize,
@@ -73,6 +79,7 @@ export function ExpandableSenderCard({
 }: ExpandableSenderCardProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorRef = useRef<string | null>(null)
+  const errorCopy = fetchErrorKind ? getSenderExpandErrorCopy(fetchErrorKind) : null
 
   const allSelected = emails.length > 0 && selectedIds.size === emails.length
 
@@ -188,13 +195,24 @@ export function ExpandableSenderCard({
                   </div>
                 ))}
               </div>
-            ) : fetchError ? (
+            ) : errorCopy ? (
               <div className="text-center py-8">
                 <Mail className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">Could not load emails</h3>
-                <p className="text-muted-foreground">
-                  Try collapsing and expanding this sender again
-                </p>
+                <h3 className="text-lg font-medium text-foreground mb-2">{errorCopy.title}</h3>
+                <p className="text-muted-foreground mb-4">{errorCopy.description}</p>
+                {onRetry && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onRetry(sender.sender)
+                    }}
+                  >
+                    Retry
+                  </Button>
+                )}
               </div>
             ) : emails.length === 0 ? (
               <div className="text-center py-8">

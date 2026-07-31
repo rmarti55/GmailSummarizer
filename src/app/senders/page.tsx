@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AppHeader } from '@/components/AppHeader'
@@ -8,7 +8,11 @@ import { ExpandableSenderCard } from '@/components/ExpandableSenderCard'
 import { EmailDetailSheet } from '@/components/EmailDetailSheet'
 import { syncNewEmailsFromGmail } from '@/lib/client-gmail-sync'
 import { deleteEmailFromGmail, deleteEmailsFromGmail } from '@/lib/client-gmail-delete'
-import { normalizeSenderForDisplay } from '@/lib/sender-utils'
+import { normalizeSenderForDisplay, updateSenderPercentages } from '@/lib/sender-utils'
+import {
+  fetchWithRetry,
+  type SenderExpandErrorKind,
+} from '@/lib/sender-expand-fetch'
 import { useSummarizeQueue } from '@/hooks/useSummarizeQueue'
 import { Mail, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,7 +43,10 @@ export default function SendersPage() {
   const [senderEmails, setSenderEmails] = useState<Record<string, Email[]>>({})
   const [senderPagination, setSenderPagination] = useState<Record<string, PaginationInfo>>({})
   const [senderLoading, setSenderLoading] = useState<Record<string, boolean>>({})
-  const [senderFetchError, setSenderFetchError] = useState<Record<string, boolean>>({})
+  const [senderFetchError, setSenderFetchError] = useState<
+    Record<string, SenderExpandErrorKind | null>
+  >({})
+  const senderFetchGeneration = useRef<Record<string, number>>({})
   const [exitingSenders, setExitingSenders] = useState<Set<string>>(new Set())
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
@@ -169,16 +176,20 @@ export default function SendersPage() {
     return null
   }
 
-  const fetchEmailCount = async () => {
+  const fetchEmailCount = async (): Promise<number | null> => {
     try {
       const response = await fetch('/api/gmail/count')
       if (response.ok) {
         const data = await response.json()
-        setTotalEmailCount(data.totalEmails)
+        const total = data.totalEmails as number
+        setTotalEmailCount(total)
+        return total
       }
     } catch (error) {
       console.error('Failed to fetch email count:', error)
     }
+
+    return null
   }
 
   const fetchSenderEmails = async (
@@ -190,14 +201,22 @@ export default function SendersPage() {
     const senderKey = normalizeSenderForDisplay(sender)
     const expectedCount =
       options?.expectedCount ?? senders.find((entry) => entry.sender === senderKey)?.count ?? 0
+    const requestId = (senderFetchGeneration.current[senderKey] ?? 0) + 1
+    senderFetchGeneration.current[senderKey] = requestId
+    const isStale = () => senderFetchGeneration.current[senderKey] !== requestId
+
     setSenderLoading((prev) => ({ ...prev, [senderKey]: true }))
-    setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
+    setSenderFetchError((prev) => ({ ...prev, [senderKey]: null }))
     try {
-      const response = await fetch(
+      const response = await fetchWithRetry(
         `/api/senders/emails?sender=${encodeURIComponent(senderKey)}&page=${page}&limit=${limit}`
       )
+      if (isStale()) return
+
       if (response.ok) {
         const data = await response.json()
+        if (isStale()) return
+
         const emails = data.emails || []
         const pagination = data.pagination as PaginationInfo | undefined
         const total = pagination?.total ?? 0
@@ -219,17 +238,21 @@ export default function SendersPage() {
         }
 
         if (fetchMismatch) {
-          setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
+          setSenderFetchError((prev) => ({ ...prev, [senderKey]: 'mismatch' }))
         }
       } else {
-        console.error('Failed to fetch sender emails')
-        setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
+        console.error('Failed to fetch sender emails', response.status)
+        setSenderFetchError((prev) => ({ ...prev, [senderKey]: 'http' }))
       }
     } catch (error) {
+      if (isStale()) return
       console.error('Failed to fetch sender emails:', error)
-      setSenderFetchError((prev) => ({ ...prev, [senderKey]: true }))
+      setSenderFetchError((prev) => ({ ...prev, [senderKey]: 'network' }))
+    } finally {
+      if (!isStale()) {
+        setSenderLoading((prev) => ({ ...prev, [senderKey]: false }))
+      }
     }
-    setSenderLoading((prev) => ({ ...prev, [senderKey]: false }))
   }
 
   const handleToggleExpand = async (sender: string) => {
@@ -241,7 +264,7 @@ export default function SendersPage() {
       setExpandedSender(sender)
       const cachedEmails = senderEmails[sender]
       const senderStats = senders.find((entry) => entry.sender === sender)
-      const hadFetchError = senderFetchError[sender]
+      const hadFetchError = Boolean(senderFetchError[sender])
       const needsFetch =
         hadFetchError ||
         !cachedEmails ||
@@ -250,6 +273,10 @@ export default function SendersPage() {
         await fetchSenderEmails(sender, 1)
       }
     }
+  }
+
+  const handleRetrySenderEmails = async (sender: string) => {
+    await fetchSenderEmails(sender, 1)
   }
 
   const handlePageChange = async (sender: string, page: number) => {
@@ -271,8 +298,13 @@ export default function SendersPage() {
     await fetchSenderEmails(sender, 1, nextPageSize)
   }
 
-  const removeSenderFromState = (senderKey: string) => {
-    setSenders((prev) => prev.filter((entry) => entry.sender !== senderKey))
+  const removeSenderFromState = (senderKey: string, options?: { totalEmails?: number }) => {
+    setSenders((prev) => {
+      const filtered = prev.filter((entry) => entry.sender !== senderKey)
+      return options?.totalEmails !== undefined
+        ? updateSenderPercentages(filtered, options.totalEmails)
+        : filtered
+    })
     setExpandedSender((current) => (current === senderKey ? null : current))
     setSenderEmails((prev) => {
       const next = { ...prev }
@@ -296,6 +328,16 @@ export default function SendersPage() {
     })
   }
 
+  const decrementSenderCounts = (kind: SenderStats['kind']) => {
+    setSenderCounts((prev) => ({
+      all: Math.max(0, prev.all - 1),
+      person: kind === 'person' ? Math.max(0, prev.person - 1) : prev.person,
+      organization:
+        kind === 'organization' ? Math.max(0, prev.organization - 1) : prev.organization,
+      unknown: kind === 'unknown' ? Math.max(0, prev.unknown - 1) : prev.unknown,
+    }))
+  }
+
   const afterSenderEmailsDeleted = async (emailIds: string[], senderName: string) => {
     const senderKey = normalizeSenderForDisplay(senderName)
     const idSet = new Set(emailIds)
@@ -314,11 +356,16 @@ export default function SendersPage() {
       setSenderFetchError((prev) => ({ ...prev, [senderKey]: false }))
       setExitingSenders((prev) => new Set(prev).add(senderKey))
 
-      void fetchEmailCount()
+      const removedSender = senders.find((entry) => entry.sender === senderKey)
+      const newTotal = await fetchEmailCount()
 
       window.setTimeout(() => {
-        removeSenderFromState(senderKey)
-        void fetchSenderStats({ silent: true })
+        removeSenderFromState(senderKey, {
+          totalEmails: newTotal ?? Math.max(0, totalEmailCount - emailIds.length),
+        })
+        if (removedSender) {
+          decrementSenderCounts(removedSender.kind)
+        }
       }, SENDER_EXIT_MS)
       return
     }
@@ -327,11 +374,6 @@ export default function SendersPage() {
       ...prev,
       [senderKey]: (prev[senderKey] || []).filter((email) => !idSet.has(email.id)),
     }))
-    setSenders((prev) =>
-      prev.map((entry) =>
-        entry.sender === senderKey ? { ...entry, count: remaining } : entry
-      )
-    )
     if (pagination) {
       const totalPages = Math.max(1, Math.ceil(remaining / pagination.limit))
       const nextPage = Math.min(pagination.page, totalPages)
@@ -350,8 +392,18 @@ export default function SendersPage() {
 
     const nextPage = pageAfterDelete(pagination, emailIds.length)
     await fetchSenderEmails(senderKey, nextPage, pageSize, { expectedCount: remaining })
-    await fetchSenderStats({ silent: true })
-    await fetchEmailCount()
+
+    const newTotal = await fetchEmailCount()
+    const totalForPercentages =
+      newTotal ?? Math.max(0, totalEmailCount - emailIds.length)
+    setSenders((prev) =>
+      updateSenderPercentages(
+        prev.map((entry) =>
+          entry.sender === senderKey ? { ...entry, count: remaining } : entry
+        ),
+        totalForPercentages
+      )
+    )
   }
 
   const handleDeleteEmail = async (emailId: string, senderName: string) => {
@@ -500,7 +552,8 @@ export default function SendersPage() {
                 emails={senderEmails[sender.sender] || []}
                 pagination={senderPagination[sender.sender] || null}
                 loading={senderLoading[sender.sender] || false}
-                fetchError={senderFetchError[sender.sender] || false}
+                fetchErrorKind={senderFetchError[sender.sender] ?? null}
+                onRetry={handleRetrySenderEmails}
                 onPageChange={handlePageChange}
                 onPageSizeChange={handlePageSizeChange}
                 pageSize={pageSize}

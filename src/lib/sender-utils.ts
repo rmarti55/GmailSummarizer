@@ -152,7 +152,19 @@ export function normalizeSenderStats(
         totalEmails > 0 ? Math.round((entry.count / totalEmails) * 100 * 10) / 10 : 0,
       kind: resolveMajoritySenderKind(entry.kindCounts),
     }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender))
+}
+
+/** Recompute percentages in place without changing list order. */
+export function updateSenderPercentages(
+  senders: SenderStatsEntry[],
+  totalEmails: number
+): SenderStatsEntry[] {
+  return senders.map((entry) => ({
+    ...entry,
+    percentage:
+      totalEmails > 0 ? Math.round((entry.count / totalEmails) * 100 * 10) / 10 : 0,
+  }))
 }
 
 export function classifyStoredSenderRow(input: {
