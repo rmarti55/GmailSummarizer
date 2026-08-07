@@ -174,7 +174,13 @@ OPENROUTER_API_KEY=sk-or-v1-abcdef123456
 
 # App
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Vercel Cron — weekly free-tier Supabase keepalive (set in Vercel Production)
+# openssl rand -hex 32
+CRON_SECRET=your_cron_secret_here
 ```
+
+Free Supabase projects hard-pause after 7 idle days. Production runs a weekly cron (`vercel.json` → `/api/cron/keepalive`) that does one REST read so that does not happen. Requires `CRON_SECRET` on Vercel.
 
 ## 9. Test the Setup
 
@@ -219,8 +225,9 @@ Do **not** expect `email_type` or `classification_confidence` to be populated �
 
 ## 11. Production Deploy Checklist
 
-1. Deploy app to Vercel with all env vars from section 8
+1. Deploy app to Vercel with all env vars from section 8 (including `CRON_SECRET`)
 2. Set `NEXT_PUBLIC_SITE_URL` to production domain
 3. Add production callback URL to Supabase Auth redirect allow list
 4. If any migration files changed in this release: `npm run db:push`
-5. Test login, sync, summarize, and senders filters on production
+5. Confirm Vercel → Cron Jobs lists `/api/cron/keepalive` (Mondays)
+6. Test login, sync, summarize, and senders filters on production

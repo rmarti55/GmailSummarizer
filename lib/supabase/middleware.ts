@@ -36,11 +36,12 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const isAuthRoute =
+  const isPublicRoute =
     pathname.startsWith('/login') ||
-    pathname.startsWith('/api/auth')
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/cron')
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.search = ''
